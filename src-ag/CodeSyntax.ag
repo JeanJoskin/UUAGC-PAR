@@ -4,6 +4,7 @@ import Patterns
 import CommonTypes
 import Data.Map(Map)
 import Data.Set(Set)
+import Code(Expr)
 }
 
 DATA  CGrammar 
@@ -18,12 +19,13 @@ DATA  CGrammar
 TYPE CNonterminals = [CNonterminal]
 
 DATA  CNonterminal 
-   |  CNonterminal nt     :  NontermIdent
-                   params :  {[Identifier]}
-                   inh    :  Attributes
-                   syn    :  Attributes
-                   prods  :  CProductions
-                   inter  :  CInterface
+   |  CNonterminal nt         :  NontermIdent
+                   params     :  {[Identifier]}
+                   inh        :  Attributes
+                   syn        :  Attributes
+--                   inhDefault :  {Map Identifier Expr}
+                   prods      :  CProductions
+                   inter      :  CInterface
 
 DATA  CInterface
    |  CInterface seg:CSegments

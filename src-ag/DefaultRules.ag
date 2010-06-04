@@ -10,6 +10,8 @@ imports
 {
 import qualified List (delete,intersperse)
 
+import Debug.Trace
+
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Data.Map(Map)
@@ -24,7 +26,7 @@ import HsTokenScanner
 import AbstractSyntax
 import ErrorMessages
 
-import Options(Options,modcopy,rename)
+import Options(Options,modcopy,rename,datPar)
 }
 
 -------------------------------------------------------------------------------
@@ -39,13 +41,15 @@ ATTR Rule Rules Child Children Pattern Patterns [ con:ConstructorIdent | | ]
 -------------------------------------------------------------------------------
 
 ATTR Grammar          [ options:{Options} | | ]
-ATTR Nonterminals Nonterminal Productions Production [ o_rename:{Bool} 
+ATTR Nonterminals Nonterminal Productions Production [ o_rename:{Bool}
+                                                       o_datPar:{Bool}
                                                        cr:Bool {- copy rule -}  
                                                      | | ]
 
 ATTR Children Child [ cr:Bool {- copy rule -}  | | ]
 SEM Grammar
   | Grammar     nonts.o_rename  = rename    @lhs.options
+                nonts.o_datPar  = datPar    @lhs.options
                 nonts.cr        = modcopy   @lhs.options
 
 -------------------------------------------------------------------------------
@@ -248,8 +252,12 @@ selfRule lhsNecLoc attr x
    in makeRule (if lhsNecLoc then _LHS else _LOC,attr)
                (Expression noPos tks)
                "self rule"
-               
 
+depthRule :: [Identifier] -> [Rule]
+depthRule cs = let tks = [ HsToken "1+" noPos, AGField _LHS _DEPTH noPos Nothing ]
+                   descr = "depth rule"
+               in makeRule (_LOC,_DEPTH) (Expression noPos tks) descr:
+                  [ makeRule (c,_DEPTH) (Expression noPos [AGLocal _DEPTH noPos Nothing]) descr | c <- cs ]
 
 
 concatRE rsess = let (rss,ess) = unzip rsess
@@ -383,15 +391,19 @@ SEM Production
             | attr <- Map.keys selfAttrs
             , not (Set.member (_LHS,attr) @rules.definedAttrs) 
             ]
+
+        depthRules = if @lhs.o_datPar then depthRule [ nm | (nm,tp,ho) <- @children.fields, isNonterminal tp ]
+                                      else []
                                
         (rules5, errs5) 
           = copyRule @lhs.nt 
                      @con 
                      @lhs.cr 
-                     locals 
+                     locals
                      (lhs_env, (_LHS, others))
+
                                      
-    in (uRules++selfLocRules++selfRules++rules5++rules1, errors1><errs5)   
+    in (uRules++selfLocRules++selfRules++depthRules++rules5++rules1, errors1><errs5)   
     
     
    
@@ -437,6 +449,11 @@ ATTR Grammar Nonterminals  Nonterminal   Productions
     [ | | output:SELF ] 
 
 ATTR Rule [ | | outputs:Rules ]
+
+SEM Nonterminal
+  | Nonterminal lhs.output = let inh | @lhs.o_datPar = Map.insert _DEPTH (Haskell "Int") @inh
+                                     | otherwise     = @inh  
+                             in Nonterminal @nt @params inh @syn @prods.output
 
 
 SEM Production

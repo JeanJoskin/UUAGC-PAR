@@ -84,6 +84,8 @@ _FIELD = identifier "field"
 _FIRST = identifier "first__"
 _LAST  = identifier "last__"
 
+_DEPTH = identifier "__depth"
+
 sdtype :: NontermIdent -> String
 sdtype nt = "T_"++getName nt
 

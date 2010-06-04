@@ -28,6 +28,8 @@ import TokenDef
 import HsToken
 import HsTokenScanner
 
+import Debug.Trace
+
 import Data.List(partition,intersperse,intersect,(\\))
 import Maybe(fromJust,isJust)
 }
@@ -42,7 +44,7 @@ ATTR CNonterminals CNonterminal
      CVisits CVisit
      Sequence CRule
      CInterface CSegments CSegment
-       [ o_unbox,o_sig,o_sem,o_newtypes,o_case,o_pretty,o_rename,o_cata,o_strictwrap,o_splitsems,o_traces,o_costcentre,o_linePragmas : Bool
+       [ o_unbox,o_sig,o_sem,o_newtypes,o_case,o_pretty,o_rename,o_cata,o_strictwrap,o_splitsems,o_traces,o_costcentre,o_linePragmas,o_datPar : Bool
          o_data : {Maybe Bool}
          prefix : String
        | | ]
@@ -62,6 +64,7 @@ SEM CGrammar [ options : Options | | ]
                      .o_traces      = genTraces     @lhs.options
                      .o_costcentre  = genCostCentres @lhs.options
                      .o_linePragmas = genLinePragmas @lhs.options
+                     .o_datPar      = datPar        @lhs.options
 
 ATTR CNonterminals CNonterminal CProductions CProduction CVisits CVisit [ allPragmas : PragmaMap | | ]
 
@@ -135,7 +138,19 @@ SEM CNonterminal
 -- attributes and returns synthesized attributes and the next visit.
 -------------------------------------------------------------------------------
 
-ATTR  Sequence CRule [ | | decls USE {++} {[]} : {Decls} ]
+{
+
+data RuleDecl = RuleDecl [Decl]
+              | ChildVisitDecl Decl deriving Show
+
+ruleDeclDecl :: RuleDecl -> [Decl]
+ruleDeclDecl (RuleDecl ds) = ds
+ruleDeclDecl (ChildVisitDecl d) = [d]
+
+}
+
+
+ATTR  Sequence CRule [ | | rDecls USE {++} {[]} : {[RuleDecl]} ]
 SEM  CRule
   |  CRule loc.instTypes = map (\(n,NT t _,_) -> (n,t)) @lhs.higherOrderChildren
            loc.originComment = if  @lhs.o_pretty
@@ -172,23 +187,25 @@ SEM  CRule
                                              $ LineExpr
                                              $ v
                                         else v
-           loc.decls = if @hasCode
-                       then @originComment ( Decl (Pattern3 @pattern.copy) (@loc.addTrace $ @loc.addCostCentre $ @loc.addLinePragma $ (TextExpr @rhs))
+           loc.rDecls = if @hasCode
+                             then [ RuleDecl $
+                                 @originComment ( Decl (Pattern3 @pattern.copy) (@loc.addTrace $ @loc.addCostCentre $ @loc.addLinePragma $ (TextExpr @rhs))
                                                   (Set.fromList [attrname False fld nm | (fld,nm,_) <- Map.elems @defines])
                                                   (Set.fromList [attrname True fld nm | (fld,nm) <- Set.toList @uses])
-                                           : @loc.instDecls)
-                       else @loc.instDecls
+                                           : @loc.instDecls) ]
+                             else [ RuleDecl @loc.instDecls ]
   |  CChildVisit loc.costCentreDescr = show @lhs.nt ++ ":" ++ show @lhs.con ++ ":" ++ show @name ++ ":" ++ show @nt ++ ":" ++ show @nr
                  loc.addCostCentre = \v -> if @lhs.o_costcentre
                                            then PragmaExpr True False ("SCC \"" ++ @loc.costCentreDescr ++ "\"") v
                                            else v
-                 loc.decls = let  lhsVars =  map (attrname True @name) (Map.keys @syn)
-                                             ++ if @isLast then [] else [unwrap ++ funname @name (@nr+1)]
+                 loc.rDecls = let lhsVars =  map (attrname True @name) (Map.keys @syn)
+                                                   ++ if @isLast then [] else [unwrap ++ funname @name (@nr+1)]
                                   rhsVars = map (attrname False @name) (Map.keys @inh)
                                   unwrap = if @lhs.o_newtypes then typeName @nt (@nr + 1) ++ " " else ""
                                   tuple = mkTupleLhs @lhs.o_unbox (null $ Map.keys @inh) lhsVars
                                   rhs = @loc.addCostCentre $ App (funname @name @nr) (map SimpleExpr rhsVars)
-                             in [Decl tuple rhs (Set.fromList lhsVars) (Set.fromList (funname @name @nr : rhsVars))]
+                              in  [ ChildVisitDecl $
+                                      Decl tuple rhs (Set.fromList lhsVars) (Set.fromList (funname @name @nr : rhsVars)) ]
 
 ATTR Sequence CRule [ higherOrderChildren : {[(Identifier,Type,Bool)]} ||]
 
@@ -203,6 +220,7 @@ ATTR Pattern Patterns [ | | patternAttributes USE {++} {[]} : {[(Identifier, Ide
 SEM Pattern
   | Alias
       lhs.patternAttributes = (@field,@attr) : (@pat.patternAttributes ++ @parts.patternAttributes)
+
 
 -------------------------------------------------------------------------------
 -- Numbering the visits
@@ -363,7 +381,7 @@ SEM  CVisit
                                 in if @lhs.isLast
                                    then []
                                    else [Decl lhs rhs (Set.fromList @nextVisitName) @lhs.nextIntraVars]
-            loc.decls = @typeSigs ++ @vss.decls ++ @nextVisitDecl
+            loc.decls = @typeSigs ++ (concatMap ruleDeclDecl @vss.rDecls) ++ @nextVisitDecl
             vss.lastExpr = mkTupleExpr @lhs.o_unbox (null $ Map.keys @inh) $ map (SimpleExpr . lhsname False) (Map.keys @syn) ++ map SimpleExpr @nextVisitName
             intra.lastExpr = error "lastExpr: not used here"
             loc.lastExprVars = map (lhsname False) (Map.keys @syn) ++ @loc.nextVisitName
@@ -398,7 +416,7 @@ SEM  CVisit
                                   $ @loc.addCostCentre
                                   $ if @ordered && @loc.o_splitsems
                                     then @loc.blockFirstFunCall
-                                    else mkLet @o_case @decls
+                                    else mkRuleLet @o_case @lhs.o_datPar @vss.rDecls
                                          . mkTupleExpr @lhs.o_unbox (null $ Map.keys @inh)
                                          $ map (SimpleExpr . lhsname False) (Map.keys @syn) ++ map SimpleExpr @nextVisitName
                               wrap = if  @lhs.o_newtypes
@@ -467,7 +485,7 @@ SEM CVisit
 
 SEM CRule
   | CRule
-      lhs.declsAbove = @lhs.declsAbove ++ @loc.decls
+      lhs.declsAbove = @lhs.declsAbove ++ (concatMap ruleDeclDecl @loc.rDecls)
   | CChildVisit
       lhs.declsAbove = []
 
@@ -482,7 +500,7 @@ SEM CRule
   | CRule
       lhs.bldBlocksFun = id
   | CChildVisit
-      lhs.bldBlocksFun = DeclBlock @lhs.declsAbove (head @loc.decls)
+      lhs.bldBlocksFun = DeclBlock @lhs.declsAbove (head $ concatMap ruleDeclDecl @loc.rDecls)
 
 {
 -- dead code - replaced by mkPartitionedFunction
@@ -797,10 +815,67 @@ SEM CNonterminal
                                ]
 
 {
+
+ruleDeclDecls = concatMap ruleDeclDecl
+
+isChildVisitDecl (ChildVisitDecl _) = True
+isChildVisitDecl _ = False
+
 -- Lets or nested Cases?
 mkLet :: Bool -> Decls -> Expr -> Expr
 mkLet False decls body = Let decls body
 mkLet True decls body = foldr oneCase body decls
+
+mkRuleLet :: Bool -> Bool -> [RuleDecl] -> Expr -> Expr
+mkRuleLet False _ decls body = Let (ruleDeclDecls decls) body
+mkRuleLet True False decls body = foldr oneCase body (ruleDeclDecls decls)
+mkRuleLet True True decls body = trace (show decls) $ mkParLets decls body
+
+
+mkParLets :: [RuleDecl] -> Expr -> Expr
+mkParLets ds = mkParLets' nChildVisit ds
+  where
+    mkParLets' n [] b = b
+    mkParLets' n (d:ds) b | isChildVisitDecl d && n > 1 = mkParLet d (mkParLets' (n-1) ds b)
+                          | otherwise                   = foldr oneCase (mkParLets' n ds b) (ruleDeclDecl d)
+    nChildVisit = length $ filter isChildVisitDecl ds
+
+mkSeq a b = App "pseq" [a,b]
+mkPar a b = App "par" [a,b]
+
+boundVars :: Lhs -> [String]
+boundVars (TupleLhs xs) = xs
+boundVars _ = error "Unexpected type in BoundVars"
+
+betweenBraces :: String -> String
+betweenBraces s = '(':s ++ ")"
+
+exprNum :: Int -> Expr
+exprNum = SimpleExpr . show
+
+declSimpleFun n e u = Decl (Fun n []) e (Set.singleton n) u
+
+parInterval = 5
+
+mkParLet :: RuleDecl -> Expr -> Expr
+mkParLet (ChildVisitDecl d) body = oneParLet d body
+mkParLet (RuleDecl ds) body = foldr oneCase body ds 
+
+oneParLet :: Decl -> Expr -> Expr
+oneParLet (Decl left rhs b u) exp = Let binds (App parFunName [seqs left,exp])
+  where
+    rhsAlias   = "__rhs"
+    parFunName = "__pf"
+    depthVar   = lhsname True _DEPTH
+    parComp    = Case ( App "(==)" [exprNum 0, App "mod" [SimpleExpr depthVar,exprNum parInterval]] )
+                      [ CaseAlt (Fun "True" []) (SimpleExpr "par"),
+                        CaseAlt (Fun "False" []) (SimpleExpr "pseq") ]
+    parFunDecl = declSimpleFun parFunName parComp (Set.singleton depthVar) 
+    binds      = parFunDecl: [declSimpleFun rhsAlias rhs u,
+                              Decl left (SimpleExpr rhsAlias) b (Set.singleton rhsAlias) ]
+    seqList    = (foldr mkSeq (exprNum 0)) . (map (SimpleExpr . betweenBraces))
+    seqs l     = seqList (rhsAlias:boundVars l)
+oneParLet _ exp = error "Unexpected Decl at oneParLet"
 
 oneCase :: Decl -> Expr -> Expr
 oneCase (Decl left rhs _ _) exp = Case rhs [CaseAlt left exp]

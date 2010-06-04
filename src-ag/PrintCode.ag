@@ -61,8 +61,11 @@ SEM Exprs
   | Cons lhs.pps = @hd.pp : @tl.pps
   | Nil  lhs.pps = []
 
-SEM CaseAlts
-  | Cons lhs.pps = @hd.pps ++ @tl.pps
+SEM CaseAlts [ first : Bool | | ]
+  | Cons lhs.pps = let hd | @lhs.first = @hd.pps
+                          | otherwise  = (";" >#< head @hd.pps):tail @hd.pps
+                   in hd ++ @tl.pps
+         tl.first = False
   | Nil  lhs.pps = []
 
 SEM DataAlts
@@ -120,8 +123,9 @@ SEM Expr
                                        >-< "in " >#< @body.pp
                                        )
   | Case       lhs.pp      = pp_parens (    "case" >#< pp_parens @expr.pp >#< "of"
-                                       >-< (vlist @alts.pps)
+                                       >-< "{" >#< (vlist @alts.pps) >#< "}"
                                        )
+               alts.first  = True
   | Lambda     loc.strictParams = if strictSems @lhs.options
                                   then @args.pps
                                   else []
@@ -154,7 +158,7 @@ SEM Expr
   | TypedExpr  lhs.pp      = pp_parens (@expr.pp >#< "::" >#< @tp.pp)
 
 SEM CaseAlt
-  | CaseAlt    lhs.pps     = ["{" >#< @left.pp >#< "->", @expr.pp >#< "}"]
+  | CaseAlt    lhs.pps     = [@left.pp >#< "->", @expr.pp]
 
 SEM DataAlt
   | DataAlt    lhs.pp      = @name >#< hv_sp (map ((@lhs.strictPre >|<) . pp_parens . text) @args)
@@ -441,5 +445,6 @@ writeModule path docs
   where
     output = renderDocs docs
     dumpIt = writeFile path output
+
 }
 

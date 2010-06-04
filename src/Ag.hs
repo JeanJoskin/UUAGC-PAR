@@ -13,7 +13,7 @@ import Data.Foldable(toList)
 import Pretty
 
 import UU.Parsing                    (Message(..), Action(..))
-import UU.Scanner.Position           (Pos, line, file)
+import UU.Scanner.Position           (Pos, noPos, line, file)
 import UU.Scanner.Token              (Token)
 
 import qualified Transform          as Pass1 (sem_AG     ,  wrap_AG     ,  Syn_AG      (..), Inh_AG      (..))
@@ -109,7 +109,9 @@ compile flags input output
           (pragmaBlocks, blocks2)    = Map.partitionWithKey (\(k, at) _->k==BlockPragma && at == Nothing) blocks1
           (importBlocks, textBlocks) = Map.partitionWithKey (\(k, at) _->k==BlockImport && at == Nothing) blocks2
           
-          importBlocksTxt = vlist_sep "" . map addLocationPragma . concat . Map.elems $ importBlocks
+          insertImports = (:) [(["import Control.Parallel"],noPos)]
+
+          importBlocksTxt = vlist_sep "" . map addLocationPragma . concat . insertImports . Map.elems $ importBlocks
           textBlocksDoc   = vlist_sep "" . map addLocationPragma . Map.findWithDefault [] (BlockOther, Nothing) $ textBlocks
           pragmaBlocksTxt = unlines . concat . map fst  . concat . Map.elems $ pragmaBlocks
           textBlockMap    = Map.map (vlist_sep "" . map addLocationPragma) . Map.filterWithKey (\(_, at) _ -> at /= Nothing) $ textBlocks

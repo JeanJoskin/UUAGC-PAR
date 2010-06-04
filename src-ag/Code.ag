@@ -16,7 +16,7 @@ TYPE DataAlts = [DataAlt]
 TYPE CaseAlts = [CaseAlt]
 TYPE Types    = [Type]
 
-DATA Program  | Program          chunks : Chunks
+DATA Program  | Program         chunks : Chunks
 
 DATA Chunk    | Chunk            name         : String
                                  comment      : Decl
@@ -73,6 +73,12 @@ DATA Decl     | Decl             left  : Lhs
                                  tp    : Type
               | Comment          txt   : {String}
               | PragmaDecl       txt   : {String}
+
+DERIVING Decl: Show
+DERIVING DataAlt: Show
+DERIVING Lhs: Show
+DERIVING Expr: Show
+DERIVING CaseAlt: Show
 
 DATA DataAlt  | DataAlt          name  : {String} 
                                  args  : {[String]}
