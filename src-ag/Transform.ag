@@ -955,7 +955,7 @@ constructGrammar nts ntParams gram attrs uses derivings wrappers allrules tsigs 
                                                  _       -> (Map.empty,Map.empty)
                                           in Child nm tp inh syn isVirtual
                                    in Production con cldrn rules tsigs
-                            in Nonterminal nt params inh syn (map alt alts)
+                            in Nonterminal nt params inh syn Map.empty (map alt alts)
    in Grammar tsyns uses derivings wrappers nonts pragmaMap orderMap ntParams contextMap uniqueMap
 }
 

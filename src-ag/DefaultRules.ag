@@ -22,6 +22,7 @@ import Pretty
 import Maybe
 import HsToken
 import HsTokenScanner
+import Code (Expr(..))
 
 import AbstractSyntax
 import ErrorMessages
@@ -451,9 +452,10 @@ ATTR Grammar Nonterminals  Nonterminal   Productions
 ATTR Rule [ | | outputs:Rules ]
 
 SEM Nonterminal
-  | Nonterminal lhs.output = let inh | @lhs.o_datPar = Map.insert _DEPTH (Haskell "Int") @inh
-                                     | otherwise     = @inh  
-                             in Nonterminal @nt @params inh @syn @prods.output
+  | Nonterminal lhs.output = let (inh,dfl) | @lhs.o_datPar = (Map.insert _DEPTH (Haskell "Int") @inh,
+                                                              Map.insert _DEPTH (SimpleExpr "0") @inhDflt)
+                                           | otherwise     = (@inh, @inhDflt)
+                             in Nonterminal @nt @params inh @syn dfl @prods.output
 
 
 SEM Production

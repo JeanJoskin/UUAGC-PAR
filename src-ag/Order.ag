@@ -485,7 +485,7 @@ SEM  Nonterminals [ | | cNonterminals : CNonterminals ]
   |  Cons  lhs.cNonterminals = @hd.cNonterminal : @tl.cNonterminals
   |  Nil   lhs.cNonterminals = []
 SEM  Nonterminal [ | | cNonterminal : CNonterminal ]
-  |  Nonterminal  lhs.cNonterminal = CNonterminal @nt @params @inh @syn @prods.cProductions @cInter
+  |  Nonterminal  lhs.cNonterminal = CNonterminal @nt @params @inh @syn @inhDflt @prods.cProductions @cInter
 SEM  Productions [ | | cProductions : CProductions ]
   |  Cons  lhs.cProductions = @hd.cProduction : @tl.cProductions
   |  Nil   lhs.cProductions = []

@@ -23,7 +23,7 @@ DATA  CNonterminal
                    params     :  {[Identifier]}
                    inh        :  Attributes
                    syn        :  Attributes
---                   inhDefault :  {Map Identifier Expr}
+                   inhDflt    :  {Map Identifier Expr}
                    prods      :  CProductions
                    inter      :  CInterface
 

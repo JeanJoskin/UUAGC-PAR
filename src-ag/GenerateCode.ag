@@ -677,6 +677,9 @@ SEM CNonterminal
   | CNonterminal loc.semWrapper = let params' = map getName @params
                                       inhAttrs = Map.toList @inh
                                       synAttrs = Map.toList @syn
+                                      dfltAttrs = Map.keys @inhDflt
+                                      dfltDecls = [ Decl (Fun (lhsname True a) []) v Set.empty Set.empty | (a,v) <- Map.toList @inhDflt ]
+                                      inhAttrs' = filter (not . flip elem dfltAttrs . fst) inhAttrs
                                       inhVars = [ SimpleExpr (attrname True _LHS a) | (a,_) <- inhAttrs ]
                                       synVars = [ SimpleExpr (attrname False _LHS a) | (a,_) <- synAttrs ]
                                       var = "sem"
@@ -698,7 +701,7 @@ SEM CNonterminal
                                       datas = [mkdata inhNT inhAttrs, mkdata synNT synAttrs]
                                   in datas ++ [ typeSig
                                               , Decl (Fun wrapNT [varPat, App inhNT inhVars])
-                                                    (Let @inter.wrapDecls (App synNT synVars))
+                                                    (Let (@inter.wrapDecls) (App synNT synVars))
                                                     Set.empty Set.empty
                                               ]
 
