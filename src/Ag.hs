@@ -109,7 +109,8 @@ compile flags input output
           (pragmaBlocks, blocks2)    = Map.partitionWithKey (\(k, at) _->k==BlockPragma && at == Nothing) blocks1
           (importBlocks, textBlocks) = Map.partitionWithKey (\(k, at) _->k==BlockImport && at == Nothing) blocks2
           
-          insertImports = (:) [(["import Control.Parallel"],noPos)]
+          insertImports | datPar flags = (:) [ (["import Control.Parallel"],noPos) ]
+                        | otherwise    = id
 
           importBlocksTxt = vlist_sep "" . map addLocationPragma . concat . insertImports . Map.elems $ importBlocks
           textBlocksDoc   = vlist_sep "" . map addLocationPragma . Map.findWithDefault [] (BlockOther, Nothing) $ textBlocks

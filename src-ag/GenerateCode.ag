@@ -380,12 +380,12 @@ SEM  CVisit
                                      fun = seqSemname @lhs.prefix @lhs.nt @lhs.con (@lhs.nr+1)
                                 in if @lhs.isLast
                                    then []
-                                   else [Decl lhs rhs (Set.fromList @nextVisitName) @lhs.nextIntraVars]
-            loc.decls = @typeSigs ++ (concatMap ruleDeclDecl @vss.rDecls) ++ @nextVisitDecl
+                                   else [RuleDecl [Decl lhs rhs (Set.fromList @nextVisitName) @lhs.nextIntraVars]]
+            loc.decls = @typeSigs ++ @vss.rDecls ++ @nextVisitDecl
             vss.lastExpr = mkTupleExpr @lhs.o_unbox (null $ Map.keys @inh) $ map (SimpleExpr . lhsname False) (Map.keys @syn) ++ map SimpleExpr @nextVisitName
             intra.lastExpr = error "lastExpr: not used here"
             loc.lastExprVars = map (lhsname False) (Map.keys @syn) ++ @loc.nextVisitName
-            (loc.blockFunDecls, loc.blockFirstFunCall) = mkPartitionedFunction @loc.funcname @loc.o_case @loc.nextVisitDecl @loc.lastExprVars @vss.blockDecls
+            (loc.blockFunDecls, loc.blockFirstFunCall) = mkPartitionedFunction @loc.funcname @loc.o_case (ruleDeclDecls @loc.nextVisitDecl) @loc.lastExprVars @vss.blockDecls
             
             loc.costCentreDescr = "b" ++ ":" ++ show @lhs.nt ++ ":" ++ show @lhs.con ++ ":" ++ show @lhs.nr
             loc.addCostCentre = \v -> if @lhs.o_costcentre
@@ -416,7 +416,7 @@ SEM  CVisit
                                   $ @loc.addCostCentre
                                   $ if @ordered && @loc.o_splitsems
                                     then @loc.blockFirstFunCall
-                                    else mkRuleLet @o_case @lhs.o_datPar @vss.rDecls
+                                    else mkRuleLet @o_case @lhs.o_datPar @decls
                                          . mkTupleExpr @lhs.o_unbox (null $ Map.keys @inh)
                                          $ map (SimpleExpr . lhsname False) (Map.keys @syn) ++ map SimpleExpr @nextVisitName
                               wrap = if  @lhs.o_newtypes
@@ -444,7 +444,7 @@ SEM  CVisit
                            else []
                          )
             loc.typeSigs =  if  @lhs.o_sig && not @o_case
-                                then  @vss.tSigs
+                                then  [RuleDecl @vss.tSigs]
                                 else  []
             loc.o_case = @lhs.o_case && @ordered && not (hasPragma @lhs.allPragmas @lhs.nt @lhs.con _NOCASE)
             loc.o_splitsems = @ordered && @lhs.o_splitsems
@@ -829,7 +829,7 @@ mkLet True decls body = foldr oneCase body decls
 mkRuleLet :: Bool -> Bool -> [RuleDecl] -> Expr -> Expr
 mkRuleLet False _ decls body = Let (ruleDeclDecls decls) body
 mkRuleLet True False decls body = foldr oneCase body (ruleDeclDecls decls)
-mkRuleLet True True decls body = trace (show decls) $ mkParLets decls body
+mkRuleLet True True decls body = mkParLets decls body
 
 
 mkParLets :: [RuleDecl] -> Expr -> Expr
