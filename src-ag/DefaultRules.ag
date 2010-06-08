@@ -272,7 +272,10 @@ depthRule cs = let tks = [ HsToken "1+" noPos, AGField _LHS _DEPTH noPos Nothing
                   [ makeRule (c,_DEPTH) (Expression noPos [AGLocal _DEPTH noPos Nothing]) descr | c <- cs ]
 
 parFunRule :: [Rule]
-parFunRule = let tks = [HsToken "if 0 == " noPos, AGField _LHS _DEPTH noPos Nothing, HsToken " then par else pseq" noPos]
+parFunRule = let tks = [HsToken "if 0 == mod " noPos,
+                        HsToken (show parInterval) noPos,
+                        HsToken " " noPos,
+                        AGField _LHS _DEPTH noPos Nothing, HsToken " then par else pseq" noPos]
              in [makeLazyRule (_LOC,_PARFUN) (Expression noPos tks) "parFun rule"]
 
 

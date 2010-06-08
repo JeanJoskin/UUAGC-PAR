@@ -8,6 +8,8 @@ import Data.Set(Set)
 import qualified Data.Set as Set
 
 
+parInterval = 5
+
 type Blocks = Map BlockInfo [([String], Pos)]
 type BlockInfo = (BlockType, Maybe NontermIdent)
 data BlockType

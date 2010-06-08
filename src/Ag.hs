@@ -112,9 +112,12 @@ compile flags input output
           insertImports | datPar flags = (:) [ (["import Control.Parallel"],noPos) ]
                         | otherwise    = id
 
+          insertPragmas | datPar flags = (:) [ "{-# OPTIONS_GHC -XRank2Types #-}" ]
+                        | otherwise    = id
+
           importBlocksTxt = vlist_sep "" . map addLocationPragma . concat . insertImports . Map.elems $ importBlocks
           textBlocksDoc   = vlist_sep "" . map addLocationPragma . Map.findWithDefault [] (BlockOther, Nothing) $ textBlocks
-          pragmaBlocksTxt = unlines . concat . map fst  . concat . Map.elems $ pragmaBlocks
+          pragmaBlocksTxt = unlines . concat . insertPragmas . map fst  . concat . Map.elems $ pragmaBlocks
           textBlockMap    = Map.map (vlist_sep "" . map addLocationPragma) . Map.filterWithKey (\(_, at) _ -> at /= Nothing) $ textBlocks
           
           outputfile = if null output then outputFile input else output
