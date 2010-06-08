@@ -23,11 +23,12 @@ import Maybe
 import HsToken
 import HsTokenScanner
 import Code (Expr(..))
+import qualified Code (Type(..))
 
 import AbstractSyntax
 import ErrorMessages
 
-import Options(Options,modcopy,rename,datPar)
+import Options(Options,modcopy,rename,depthAttr,datPar)
 }
 
 -------------------------------------------------------------------------------
@@ -43,15 +44,17 @@ ATTR Rule Rules Child Children Pattern Patterns [ con:ConstructorIdent | | ]
 
 ATTR Grammar          [ options:{Options} | | ]
 ATTR Nonterminals Nonterminal Productions Production [ o_rename:{Bool}
+                                                       o_depthAttr:{Bool}
                                                        o_datPar:{Bool}
                                                        cr:Bool {- copy rule -}  
                                                      | | ]
 
 ATTR Children Child [ cr:Bool {- copy rule -}  | | ]
 SEM Grammar
-  | Grammar     nonts.o_rename  = rename    @lhs.options
-                nonts.o_datPar  = datPar    @lhs.options
-                nonts.cr        = modcopy   @lhs.options
+  | Grammar     nonts.o_rename    = rename    @lhs.options
+                nonts.o_depthAttr = depthAttr @lhs.options
+                nonts.o_datPar    = datPar    @lhs.options
+                nonts.cr          = modcopy   @lhs.options
 
 -------------------------------------------------------------------------------
 -- Type synonyms environment
@@ -213,9 +216,17 @@ makeRule :: (Identifier,Identifier) -> Expression -> String -> Rule
 makeRule (f1,a1) expr origin 
  = Rule (Alias f1 a1 (Underscore noPos) []) 
         expr 
-        False 
+        False
+        False
         origin
 
+makeLazyRule :: (Identifier,Identifier) -> Expression -> String -> Rule
+makeLazyRule (f1,a1) expr origin 
+ = Rule (Alias f1 a1 (Underscore noPos) []) 
+        expr 
+        False
+        True
+        origin
 
 useRule :: Set Identifier -> [(Identifier,Attributes)] -> (Identifier,(String,String,String)) -> Rule
 useRule locals ch_outs (n,(op,e,pos)) 
@@ -259,6 +270,10 @@ depthRule cs = let tks = [ HsToken "1+" noPos, AGField _LHS _DEPTH noPos Nothing
                    descr = "depth rule"
                in makeRule (_LOC,_DEPTH) (Expression noPos tks) descr:
                   [ makeRule (c,_DEPTH) (Expression noPos [AGLocal _DEPTH noPos Nothing]) descr | c <- cs ]
+
+parFunRule :: [Rule]
+parFunRule = let tks = [HsToken "if 0 == " noPos, AGField _LHS _DEPTH noPos Nothing, HsToken " then par else pseq" noPos]
+             in [makeLazyRule (_LOC,_PARFUN) (Expression noPos tks) "parFun rule"]
 
 
 concatRE rsess = let (rss,ess) = unzip rsess
@@ -393,8 +408,10 @@ SEM Production
             , not (Set.member (_LHS,attr) @rules.definedAttrs) 
             ]
 
-        depthRules = if @lhs.o_datPar then depthRule [ nm | (nm,tp,ho) <- @children.fields, isNonterminal tp ]
+        depthRules = if @lhs.o_depthAttr then depthRule [ nm | (nm,tp,ho) <- @children.fields, isNonterminal tp ]
                                       else []
+
+        parFunRules = if @lhs.o_datPar then parFunRule else []
                                
         (rules5, errs5) 
           = copyRule @lhs.nt 
@@ -404,7 +421,7 @@ SEM Production
                      (lhs_env, (_LHS, others))
 
                                      
-    in (uRules++selfLocRules++selfRules++depthRules++rules5++rules1, errors1><errs5)   
+    in (uRules++selfLocRules++selfRules++depthRules++parFunRules++rules5++rules1, errors1><errs5)   
     
     
    
@@ -452,14 +469,14 @@ ATTR Grammar Nonterminals  Nonterminal   Productions
 ATTR Rule [ | | outputs:Rules ]
 
 SEM Nonterminal
-  | Nonterminal lhs.output = let (inh,dfl) | @lhs.o_datPar = (Map.insert _DEPTH (Haskell "Int") @inh,
+  | Nonterminal lhs.output = let (inh,dfl) | @lhs.o_depthAttr = (Map.insert _DEPTH (Haskell "Int") @inh,
                                                               Map.insert _DEPTH (SimpleExpr "0") @inhDflt)
                                            | otherwise     = (@inh, @inhDflt)
                              in Nonterminal @nt @params inh @syn dfl @prods.output
 
 
 SEM Production
-  | Production lhs.output = Production @con @children.output (@rules.output ++ @newRls) @typeSigs.output
+  | Production lhs.output = Production @con @children.output (@rules.output ++ @newRls) ((TypeSig _PARFUN $ Haskell "forall a b . a -> b -> b") : @typeSigs.output )
 
 SEM Rules 
   | Cons lhs.output = if @hd.containsVars then @hd.outputs ++ @tl.output else @tl.output
@@ -490,7 +507,7 @@ becomes
 -}
 
 multiRule :: Rule -> Int -> ([Rule], Int)	
-multiRule (Rule pat expr owrt origin) uniq
+multiRule (Rule pat expr owrt lazy origin) uniq
   =  let f :: (Pattern->Pattern) -> Expression -> Pattern -> Int -> (Pattern, ([Rule], Int))
          f w e (Product pos pats) n 
            = let freshName = Ident ("_tup" ++ show n) pos 
@@ -504,13 +521,13 @@ multiRule (Rule pat expr owrt origin) uniq
                                       in  (x2:xs1, rs2++rs1, n2)
                  (xs9,rs9,n9) = foldr g ([], [], n+1) pats
              in  ( freshPat
-                 , ( Rule (w freshPat) e owrt origin : rs9
+                 , ( Rule (w freshPat) e owrt lazy origin : rs9
                    , n9
                    )
                  )
          f w e p n 
            = ( p
-             , ( [Rule (w p) e owrt origin]
+             , ( [Rule (w p) e owrt lazy origin]
                , n
                )
              )

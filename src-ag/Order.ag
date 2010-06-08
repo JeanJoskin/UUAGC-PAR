@@ -211,7 +211,7 @@ SEM  Rule
                                           , let aa = AltAttr field attr isLocalOrInst
                                           ]
            loc.gathRules =  let childnt field = Map.lookup field @lhs.childNts
-                            in Seq.fromList [ CRule attr False True @lhs.nt @lhs.con field (childnt field) tp @pattern.copy @rhs.textLines @defines @owrt @origin @rhs.allRhsVars
+                            in Seq.fromList [ CRule attr False True @lhs.nt @lhs.con field (childnt field) tp @pattern.copy @rhs.textLines @defines @owrt @lazy @origin @rhs.allRhsVars
                                             | (field,attr,tp) <- Map.elems @defines 
                                             ]
 
@@ -250,9 +250,14 @@ ATTR Nonterminals Nonterminal
 SEM  Rule
   |  Rule  lhs.directDep
              = let  defined = Map.keys @defines
+                    parfun = Map.lookup (AltAttr _LOC _PARFUN True) @lhs.altAttrs
+                    parfunDeps | isJust parfun = let parfun' = fromJust parfun
+                                                 in [ (parfun',y) | y <- defined, y /= parfun' ]
+                               | otherwise     = []
+                    artifDeps  = parfunDeps
                     used =  [ Map.lookup (AltAttr field attr True) @lhs.altAttrs | (field,attr) <- @rhs.usedAttrs]
                             ++ [ Map.lookup (AltAttr _LOC attr True) @lhs.altAttrs | attr <- @rhs.usedLocals ++ @rhs.usedFields ]
-               in Seq.fromList [ (x,y) | Just x <- used, y <- defined ]
+               in Seq.fromList ( [ (x,y) | Just x <- used, y <- defined ] ++ artifDeps )
 
 -- Manual depdendencies (provided by the programmer)
 --

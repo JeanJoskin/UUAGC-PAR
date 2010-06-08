@@ -68,6 +68,7 @@ DATA  CRule
                    rhs        :  {[String]}     -- empty string if 'hasCode' is False
                    defines    :  {Map Int (Identifier,Identifier,Maybe Type)}   -- the attributes defined by this rule
                    owrt       :  {Bool}
+                   lazy       :  {Bool} -- forces a rule to be evaluated in a let-binding
                    origin     :  String  -- just for documentation (and maybe errors)
                    uses       :  {Set (Identifier, Identifier)}
    |  CChildVisit  name    :  Identifier  -- corresponding to the name of the child

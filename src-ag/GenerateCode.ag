@@ -140,11 +140,11 @@ SEM CNonterminal
 
 {
 
-data RuleDecl = RuleDecl [Decl]
+data RuleDecl = RuleDecl Bool [Decl] 
               | ChildVisitDecl Decl deriving Show
 
 ruleDeclDecl :: RuleDecl -> [Decl]
-ruleDeclDecl (RuleDecl ds) = ds
+ruleDeclDecl (RuleDecl lazy ds) = ds
 ruleDeclDecl (ChildVisitDecl d) = [d]
 
 }
@@ -188,12 +188,12 @@ SEM  CRule
                                              $ v
                                         else v
            loc.rDecls = if @hasCode
-                             then [ RuleDecl $
-                                 @originComment ( Decl (Pattern3 @pattern.copy) (@loc.addTrace $ @loc.addCostCentre $ @loc.addLinePragma $ (TextExpr @rhs))
+                             then [ RuleDecl @lazy
+                                    (@originComment ( Decl (Pattern3 @pattern.copy) (@loc.addTrace $ @loc.addCostCentre $ @loc.addLinePragma $ (TextExpr @rhs))
                                                   (Set.fromList [attrname False fld nm | (fld,nm,_) <- Map.elems @defines])
                                                   (Set.fromList [attrname True fld nm | (fld,nm) <- Set.toList @uses])
-                                           : @loc.instDecls) ]
-                             else [ RuleDecl @loc.instDecls ]
+                                           : @loc.instDecls)) ]
+                             else [ RuleDecl @lazy @loc.instDecls  ]
   |  CChildVisit loc.costCentreDescr = show @lhs.nt ++ ":" ++ show @lhs.con ++ ":" ++ show @name ++ ":" ++ show @nt ++ ":" ++ show @nr
                  loc.addCostCentre = \v -> if @lhs.o_costcentre
                                            then PragmaExpr True False ("SCC \"" ++ @loc.costCentreDescr ++ "\"") v
@@ -380,7 +380,7 @@ SEM  CVisit
                                      fun = seqSemname @lhs.prefix @lhs.nt @lhs.con (@lhs.nr+1)
                                 in if @lhs.isLast
                                    then []
-                                   else [RuleDecl [Decl lhs rhs (Set.fromList @nextVisitName) @lhs.nextIntraVars]]
+                                   else [RuleDecl False [Decl lhs rhs (Set.fromList @nextVisitName) @lhs.nextIntraVars]]
             loc.decls = @typeSigs ++ @vss.rDecls ++ @nextVisitDecl
             vss.lastExpr = mkTupleExpr @lhs.o_unbox (null $ Map.keys @inh) $ map (SimpleExpr . lhsname False) (Map.keys @syn) ++ map SimpleExpr @nextVisitName
             intra.lastExpr = error "lastExpr: not used here"
@@ -444,7 +444,7 @@ SEM  CVisit
                            else []
                          )
             loc.typeSigs =  if  @lhs.o_sig && not @o_case
-                                then  [RuleDecl @vss.tSigs]
+                                then  [RuleDecl False @vss.tSigs]
                                 else  []
             loc.o_case = @lhs.o_case && @ordered && not (hasPragma @lhs.allPragmas @lhs.nt @lhs.con _NOCASE)
             loc.o_splitsems = @ordered && @lhs.o_splitsems
@@ -824,6 +824,9 @@ ruleDeclDecls = concatMap ruleDeclDecl
 isChildVisitDecl (ChildVisitDecl _) = True
 isChildVisitDecl _ = False
 
+isLazyDecl (RuleDecl lazy _) = lazy
+isLazyDecl _ = False
+
 -- Lets or nested Cases?
 mkLet :: Bool -> Decls -> Expr -> Expr
 mkLet False decls body = Let decls body
@@ -834,12 +837,12 @@ mkRuleLet False _ decls body = Let (ruleDeclDecls decls) body
 mkRuleLet True False decls body = foldr oneCase body (ruleDeclDecls decls)
 mkRuleLet True True decls body = mkParLets decls body
 
-
 mkParLets :: [RuleDecl] -> Expr -> Expr
 mkParLets ds = mkParLets' nChildVisit ds
   where
     mkParLets' n [] b = b
     mkParLets' n (d:ds) b | isChildVisitDecl d && n > 1 = mkParLet d (mkParLets' (n-1) ds b)
+                          | isLazyDecl d                = Let (ruleDeclDecl d) (mkParLets' n ds b)
                           | otherwise                   = foldr oneCase (mkParLets' n ds b) (ruleDeclDecl d)
     nChildVisit = length $ filter isChildVisitDecl ds
 
@@ -858,25 +861,19 @@ exprNum = SimpleExpr . show
 
 declSimpleFun n e u = Decl (Fun n []) e (Set.singleton n) u
 
-parInterval = 5
-
 mkParLet :: RuleDecl -> Expr -> Expr
 mkParLet (ChildVisitDecl d) body = oneParLet d body
-mkParLet (RuleDecl ds) body = foldr oneCase body ds 
+mkParLet (RuleDecl lazy ds) body = foldr oneCase body ds 
 
 oneParLet :: Decl -> Expr -> Expr
 oneParLet (Decl left rhs b u) exp = Let binds (App parFunName [seqs left,exp])
   where
     rhsAlias   = "__rhs"
-    parFunName = "__pf"
+    parFunName = locname _PARFUN
     depthVar   = lhsname True _DEPTH
-    parComp    = Case ( App "(==)" [exprNum 0, App "mod" [SimpleExpr depthVar,exprNum parInterval]] )
-                      [ CaseAlt (Fun "True" []) (SimpleExpr "par"),
-                        CaseAlt (Fun "False" []) (SimpleExpr "pseq") ]
-    parFunDecl = declSimpleFun parFunName parComp (Set.singleton depthVar) 
-    binds      = parFunDecl: [declSimpleFun rhsAlias rhs u,
-                              Decl left (SimpleExpr rhsAlias) b (Set.singleton rhsAlias) ]
-    seqList    = (foldr mkSeq (exprNum 0)) . (map (SimpleExpr . betweenBraces))
+    binds      = [declSimpleFun rhsAlias rhs u,
+                  Decl left (SimpleExpr rhsAlias) b (Set.singleton rhsAlias) ]
+    seqList    = (foldr mkSeq (SimpleExpr "()")) . (map (SimpleExpr . betweenBraces))
     seqs l     = seqList (rhsAlias:boundVars l)
 oneParLet _ exp = error "Unexpected Decl at oneParLet"
 

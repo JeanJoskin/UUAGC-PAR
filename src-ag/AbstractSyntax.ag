@@ -51,6 +51,7 @@ DATA Child        | Child   name        : {Identifier}
 DATA Rule         | Rule    pattern : Pattern 
                             rhs     : Expression
                             owrt    : {Bool}
+                            lazy    : {Bool}  -- forces a rule to be evaluated in a let-binding
                             origin  : String  -- just for documentation (and maybe errors)
 
 DATA TypeSig      | TypeSig name : {Identifier}

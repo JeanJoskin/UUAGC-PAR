@@ -57,6 +57,7 @@ options     =  [ Option ['m']     []                (NoArg (moduleOpt Nothing)) 
                , Option []        ["doublecolons"]    (NoArg doubleColonsOpt) "Use double colons for type signatures instead of single colons"
                , Option ['H']     ["haskellsyntax"]   (NoArg haskellSyntaxOpt) "Use Haskell like syntax (equivalent to --lckeywords and --doublecolons --genlinepragmas)"
                , Option []        ["datpar"]  (NoArg datParOpt) "data parallel traversals (visit functions only)"
+               , Option []        ["depth"]  (NoArg depthAttrOpt) "add depth attribute (testing purposes)"
                ]
 
 allc = "dcfsprm"
@@ -111,6 +112,7 @@ data Options = Options{ moduleName :: ModuleHeader
                       , lcKeywords :: Bool
                       , doubleColons :: Bool
                       , datPar :: Bool
+                      , depthAttr :: Bool
                       } deriving Show
 noOptions = Options { moduleName    = NoName
                     , dataTypes     = False
@@ -162,6 +164,7 @@ noOptions = Options { moduleName    = NoName
                     , lcKeywords      = False
                     , doubleColons    = False
                     , datPar          = False
+                    , depthAttr       = False
                     }
 
 
@@ -214,6 +217,7 @@ lcKeywordsOpt opts = opts { lcKeywords = True }
 doubleColonsOpt opts = opts { doubleColons = True }
 haskellSyntaxOpt = lcKeywordsOpt . doubleColonsOpt . genLinePragmasOpt
 datParOpt      opts = opts{datPar  = True}
+depthAttrOpt   opts = opts{depthAttr   = True}
 
 outputOpt  file  opts = opts{outputFiles  = file : outputFiles opts}            
 searchPathOpt  path  opts = opts{searchPath  = extract path ++ searchPath opts}            
