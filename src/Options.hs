@@ -216,7 +216,7 @@ uniqueDispenserOpt nm opts = opts { uniqueDispenser = nm }
 lcKeywordsOpt opts = opts { lcKeywords = True }
 doubleColonsOpt opts = opts { doubleColons = True }
 haskellSyntaxOpt = lcKeywordsOpt . doubleColonsOpt . genLinePragmasOpt
-datParOpt      opts = opts{datPar  = True}
+datParOpt      opts = opts{datPar  = True, depthAttr = True, cases = True, visit = True}
 depthAttrOpt   opts = opts{depthAttr   = True}
 
 outputOpt  file  opts = opts{outputFiles  = file : outputFiles opts}            

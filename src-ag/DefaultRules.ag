@@ -2,6 +2,7 @@ PRAGMA strictdata
 PRAGMA optimize
 PRAGMA bangpats
 PRAGMA strictwrap
+PRAGMA datpar
 
 INCLUDE "AbstractSyntax.ag"
 INCLUDE "Patterns.ag"
@@ -272,10 +273,15 @@ depthRule cs = let tks = [ HsToken "1+" noPos, AGField _LHS _DEPTH noPos Nothing
                   [ makeRule (c,_DEPTH) (Expression noPos [AGLocal _DEPTH noPos Nothing]) descr | c <- cs ]
 
 parFunRule :: [Rule]
-parFunRule = let tks = [HsToken "if 0 == mod " noPos,
-                        HsToken (show parInterval) noPos,
+parFunRule = let tks = [HsToken "if " noPos,
+                        AGField _LHS _DEPTH noPos Nothing,
+                        HsToken " < " noPos,
+                        HsToken (show parLimit) noPos,
+                        HsToken " && 0 == mod " noPos,
+                        AGField _LHS _DEPTH noPos Nothing, 
                         HsToken " " noPos,
-                        AGField _LHS _DEPTH noPos Nothing, HsToken " then par else pseq" noPos]
+                        HsToken (show parInterval) noPos,
+                        HsToken " then par else pseq" noPos ]
              in [makeLazyRule (_LOC,_PARFUN) (Expression noPos tks) "parFun rule"]
 
 

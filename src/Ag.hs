@@ -109,10 +109,10 @@ compile flags input output
           (pragmaBlocks, blocks2)    = Map.partitionWithKey (\(k, at) _->k==BlockPragma && at == Nothing) blocks1
           (importBlocks, textBlocks) = Map.partitionWithKey (\(k, at) _->k==BlockImport && at == Nothing) blocks2
           
-          insertImports | datPar flags = (:) [ (["import Control.Parallel"],noPos) ]
+          insertImports | datPar flags' = (:) [ (["import Control.Parallel"],noPos) ]
                         | otherwise    = id
 
-          insertPragmas | datPar flags = (:) [ "{-# OPTIONS_GHC -XRank2Types #-}" ]
+          insertPragmas | datPar flags' = (:) [ "{-# OPTIONS_GHC -XRank2Types #-}" ]
                         | otherwise    = id
 
           importBlocksTxt = vlist_sep "" . map addLocationPragma . concat . insertImports . Map.elems $ importBlocks
