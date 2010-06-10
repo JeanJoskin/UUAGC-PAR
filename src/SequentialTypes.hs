@@ -49,6 +49,10 @@ getType     (CRule name ii hc nt con field childnt tp pattern rhs defines owrt l
 getDefines  (CRule name ii hc nt con field childnt tp pattern rhs defines owrt lazy origin uses) = defines
 getUses     (CRule name ii hc nt con field childnt tp pattern rhs defines owrt lazy origin uses) = uses
 
+isChildVisit :: CRule -> Bool
+isChildVisit (CChildVisit _ _ _ _ _ _ _) = True
+isChildVisit _ = False
+
 isLocal = (_LOC==) . getField
 isInst = (_INST==) . getField
 isLhs = (_LHS==) . getField
