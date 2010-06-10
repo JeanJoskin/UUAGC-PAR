@@ -140,12 +140,14 @@ SEM CNonterminal
 
 {
 
-data RuleDecl = RuleDecl Bool [Decl] 
-              | ChildVisitDecl Decl deriving Show
+data RuleDecl = RuleDecl { lazyRule :: Bool,
+                           rdRules :: [Decl] }
+              | ChildVisitDecl { parCan :: Bool,
+                                 cvRule :: Decl } deriving Show
 
 ruleDeclDecl :: RuleDecl -> [Decl]
-ruleDeclDecl (RuleDecl lazy ds) = ds
-ruleDeclDecl (ChildVisitDecl d) = [d]
+ruleDeclDecl (RuleDecl _ ds) = ds
+ruleDeclDecl (ChildVisitDecl _ d) = [d]
 
 }
 
@@ -204,7 +206,7 @@ SEM  CRule
                                   unwrap = if @lhs.o_newtypes then typeName @nt (@nr + 1) ++ " " else ""
                                   tuple = mkTupleLhs @lhs.o_unbox (null $ Map.keys @inh) lhsVars
                                   rhs = @loc.addCostCentre $ App (funname @name @nr) (map SimpleExpr rhsVars)
-                              in  [ ChildVisitDecl $
+                              in  [ ChildVisitDecl @parCan $
                                       Decl tuple rhs (Set.fromList lhsVars) (Set.fromList (funname @name @nr : rhsVars)) ]
 
 ATTR Sequence CRule [ higherOrderChildren : {[(Identifier,Type,Bool)]} ||]
@@ -821,7 +823,7 @@ SEM CNonterminal
 
 ruleDeclDecls = concatMap ruleDeclDecl
 
-isChildVisitDecl (ChildVisitDecl _) = True
+isChildVisitDecl (ChildVisitDecl _ _) = True
 isChildVisitDecl _ = False
 
 isLazyDecl (RuleDecl lazy _) = lazy
@@ -835,16 +837,7 @@ mkLet True decls body = foldr oneCase body decls
 mkRuleLet :: Bool -> Bool -> [RuleDecl] -> Expr -> Expr
 mkRuleLet False _ decls body = Let (ruleDeclDecls decls) body
 mkRuleLet True False decls body = foldr oneCase body (ruleDeclDecls decls)
-mkRuleLet True True decls body = mkParLets decls body
-
-mkParLets :: [RuleDecl] -> Expr -> Expr
-mkParLets ds = mkParLets' nChildVisit ds
-  where
-    mkParLets' n [] b = b
-    mkParLets' n (d:ds) b | isChildVisitDecl d && n > 1 = mkParLet d (mkParLets' (n-1) ds b)
-                          | isLazyDecl d                = Let (ruleDeclDecl d) (mkParLets' n ds b)
-                          | otherwise                   = foldr oneCase (mkParLets' n ds b) (ruleDeclDecl d)
-    nChildVisit = length $ filter isChildVisitDecl ds
+mkRuleLet True True decls body = foldr mkParLet body decls
 
 mkSeq a b = App "pseq" [a,b]
 mkPar a b = App "par" [a,b]
@@ -862,8 +855,10 @@ exprNum = SimpleExpr . show
 declSimpleFun n e u = Decl (Fun n []) e (Set.singleton n) u
 
 mkParLet :: RuleDecl -> Expr -> Expr
-mkParLet (ChildVisitDecl d) body = oneParLet d body
-mkParLet (RuleDecl lazy ds) body = foldr oneCase body ds 
+mkParLet (ChildVisitDecl parCan d) body | parCan    = oneParLet d body
+                                        | otherwise = oneCase d body
+mkParLet (RuleDecl lazy ds) body | lazy      = Let ds body
+                                 | otherwise = foldr oneCase body ds 
 
 oneParLet :: Decl -> Expr -> Expr
 oneParLet (Decl left rhs b u) exp = Let binds (App parFunName [seqs left,exp])
