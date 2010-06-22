@@ -8,10 +8,13 @@ INCLUDE "Interfaces.ag"
 
 imports
 {
+{-# OPTIONS_GHC -XRankNTypes #-}
+
 import Interfaces
 import SequentialTypes
 import CodeSyntax
 import GrammarInfo
+import VisitSort
 
 import qualified Data.Sequence as Seq
 import Data.Sequence(Seq)
@@ -20,9 +23,9 @@ import Data.Map(Map)
 import qualified Data.Set as Set
 import Data.Set(Set)
 import Data.Tree(Tree(Node))
-import Data.Graph(Graph, dfs, edges, buildG, transposeG)
+import Data.Graph(Graph, dfs, edges, buildG, transposeG, Forest (..), Bounds)
 import Data.Maybe (fromJust)
-import Data.List (partition,transpose,(\\),nub,intersect, findIndex)
+import Data.List (partition,transpose,(\\),nub,intersect, findIndex,sortBy)
 import Data.Array ((!),inRange,bounds,assocs)
 import Data.Foldable(toList)
 
@@ -229,9 +232,11 @@ SEM  Segment
   |  Segment  loc.synOccur = gather @lhs.info (@occurAs isLhs @syn)
               loc.vss =  let hasCode v | inRange (bounds (ruleTable @lhs.info)) v =  getHasCode (ruleTable @lhs.info ! v)
                                        | otherwise = True
+                             isCv = isVertexChildVisit @lhs.visitDescr
                          in if  null @syn
                                 then replicate (length @lhs.cons) []
-                                else map (filter hasCode . topSort' @lhs.vssGraph) @synOccur
+                                else let r = map (filter hasCode . (visitSort isCv @lhs.vssGraph)) @synOccur
+                                     in r
 ATTR Segments Segment [ cons : {[ConstructorIdent]} | | ]
 SEM  Interface
   |  Interface seg.cons = @cons
@@ -242,10 +247,8 @@ sorting.
 
 \begin{Code}
 {
-postorder (Node a ts) = postorderF ts ++ [a]
-postorderF = concatMap postorder
-postOrd g = postorderF . dfs g
-topSort' g = postOrd g
+isVertexChildVisit :: Map Vertex ChildVisit -> Vertex -> Bool
+isVertexChildVisit = flip Map.member 
 }
 \end{Code}
 
@@ -419,6 +422,14 @@ SEM  Segment [ | | seg : CSegment
 
 {
 type AtrrRefs = Set (Identifier,Identifier)
+
+
+
+prettyVisit :: Info -> (Map Vertex ChildVisit) -> Vertex -> String
+prettyVisit info visitDescr v = (show v) ++ ": " ++ case Map.lookup v visitDescr of
+                                  Nothing                         -> let cr = ruleTable info ! v
+                                                                       in show (getDefines cr)
+                                  Just (ChildVisit name nt n _ _) -> (getName name) ++ "." ++ (getName nt) ++ " (" ++ (show n) ++ ")"
 
 ruleConsumes :: CRule -> AtrrRefs
 ruleConsumes (CRule _ _ _ _ _ _ _ _ _ _ _ _ _ _ uses) = uses

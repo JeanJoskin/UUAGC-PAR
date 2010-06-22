@@ -18,6 +18,7 @@ import Data.List(intersperse)
 import System.IO
 import System.Directory
 import CommonTypes(BlockInfo, BlockType(..), identifier)
+import Debug.Trace
 }
 
 {
@@ -420,6 +421,7 @@ SEM Chunk
             , pp $ @lhs.optionsLine
             , pp $ @lhs.moduleHeader @lhs.mainName ("_" ++ @name) @loc.exports True
             , pp $ ("import " ++ @lhs.mainName ++ "_common\n")
+            , pp $ ("import Control.Parallel\n")
             , pp $ Map.findWithDefault empty (BlockImport, Just $ identifier @name) @lhs.textBlockMap
             , @comment.pp
             , vlist_sep "" @info.pps

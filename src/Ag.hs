@@ -12,6 +12,8 @@ import qualified Data.Sequence as Seq ((><))
 import Data.Foldable(toList)
 import Pretty
 
+import Debug.Trace
+
 import UU.Parsing                    (Message(..), Action(..))
 import UU.Scanner.Position           (Pos, noPos, line, file)
 import UU.Scanner.Token              (Token)
@@ -63,7 +65,7 @@ compile flags input output
           flags'    = Pass1.pragmas_Syn_AG       output1 $ flags
           grammar1  = Pass1.output_Syn_AG        output1
           output1a  = Pass1a.wrap_Grammar        (Pass1a.sem_Grammar grammar1                          ) Pass1a.Inh_Grammar {Pass1a.options_Inh_Grammar = flags', Pass1a.forcedIrrefutables_Inh_Grammar = irrefutableMap }
-          grammar1a =Pass1a.output_Syn_Grammar   output1a
+          grammar1a = Pass1a.output_Syn_Grammar   output1a
           output2   = Pass2.wrap_Grammar         (Pass2.sem_Grammar grammar1a                          ) Pass2.Inh_Grammar  {Pass2.options_Inh_Grammar  = flags'}
           grammar2  = Pass2.output_Syn_Grammar   output2
           outputV   = PassV.wrap_Grammar         (PassV.sem_Grammar grammar2                           ) PassV.Inh_Grammar  {}
@@ -112,12 +114,9 @@ compile flags input output
           insertImports | datPar flags' = (:) [ (["import Control.Parallel"],noPos) ]
                         | otherwise    = id
 
-          insertPragmas | datPar flags' = (:) [ "{-# OPTIONS_GHC -XRank2Types #-}" ]
-                        | otherwise    = id
-
           importBlocksTxt = vlist_sep "" . map addLocationPragma . concat . insertImports . Map.elems $ importBlocks
           textBlocksDoc   = vlist_sep "" . map addLocationPragma . Map.findWithDefault [] (BlockOther, Nothing) $ textBlocks
-          pragmaBlocksTxt = unlines . concat . insertPragmas . map fst  . concat . Map.elems $ pragmaBlocks
+          pragmaBlocksTxt = unlines . concat . map fst  . concat . Map.elems $ pragmaBlocks
           textBlockMap    = Map.map (vlist_sep "" . map addLocationPragma) . Map.filterWithKey (\(_, at) _ -> at /= Nothing) $ textBlocks
           
           outputfile = if null output then outputFile input else output
@@ -130,6 +129,7 @@ compile flags input output
                 = vlist (map pp strs)
           
           optionsGHC = option (unbox flags') "-fglasgow-exts" ++ option (bangpats flags') "-fbang-patterns"
+                         ++ option (datPar flags') "-XRank2Types"
           option True s  = [s]
           option False _ = []
           optionsLine | null optionsGHC = ""
