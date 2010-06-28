@@ -1,4 +1,4 @@
 module Version where
 
 banner :: String
-banner = "Attribute Grammar compiler / HUT project. Version 0.9.13"
+banner = "Attribute Grammar compiler / HUT project. Version 0.9.26"

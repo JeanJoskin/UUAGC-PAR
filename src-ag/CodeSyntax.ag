@@ -15,6 +15,7 @@ DATA  CGrammar
                 pragmas   : {PragmaMap}
                 paramMap  : {ParamMap}
                 contextMap: {ContextMap}
+                aroundsMap: {Map NontermIdent (Map ConstructorIdent (Set Identifier))}
 
 TYPE CNonterminals = [CNonterminal]
 
@@ -41,7 +42,7 @@ TYPE CProductions = [CProduction]
 DATA  CProduction
    |  CProduction   con        : ConstructorIdent
                     visits     : CVisits
-                    children   : {[(Identifier,Type,Bool)]}
+                    children   : {[(Identifier,Type,Maybe (Maybe Type))]}
                     terminals  : {[Identifier]}
 
 TYPE CVisits = [CVisit]
@@ -68,9 +69,10 @@ DATA  CRule
                    rhs        :  {[String]}     -- empty string if 'hasCode' is False
                    defines    :  {Map Int (Identifier,Identifier,Maybe Type)}   -- the attributes defined by this rule
                    owrt       :  {Bool}
-                   lazy       :  {Bool} -- forces a rule to be evaluated in a let-binding
                    origin     :  String  -- just for documentation (and maybe errors)
                    uses       :  {Set (Identifier, Identifier)}
+                   explicit   :  Bool   -- True if this an explicit rule found in the source file
+                   mbNamed    : {Maybe Identifier}
    |  CChildVisit  name    :  Identifier  -- corresponding to the name of the child
                    nt      :  NontermIdent
                    nr      :  Int   -- visit number

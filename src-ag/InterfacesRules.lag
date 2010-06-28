@@ -423,8 +423,6 @@ SEM  Segment [ | | seg : CSegment
 {
 type AtrrRefs = Set (Identifier,Identifier)
 
-
-
 prettyVisit :: Info -> (Map Vertex ChildVisit) -> Vertex -> String
 prettyVisit info visitDescr v = (show v) ++ ": " ++ case Map.lookup v visitDescr of
                                   Nothing                         -> let cr = ruleTable info ! v
@@ -432,11 +430,11 @@ prettyVisit info visitDescr v = (show v) ++ ": " ++ case Map.lookup v visitDescr
                                   Just (ChildVisit name nt n _ _) -> (getName name) ++ "." ++ (getName nt) ++ " (" ++ (show n) ++ ")"
 
 ruleConsumes :: CRule -> AtrrRefs
-ruleConsumes (CRule _ _ _ _ _ _ _ _ _ _ _ _ _ _ uses) = uses
+ruleConsumes (CRule _ _ _ _ _ _ _ _ _ _ _ _ _ uses _ _) = uses
 ruleConsumes (CChildVisit child _ _ inh _ _ _) = foldr (\a -> Set.insert (child,a)) Set.empty . Map.keys $ inh
 
 ruleProduces :: CRule -> AtrrRefs
-ruleProduces (CRule _ _ _ _ _ _ _ _ _ _ defines _ _ _ _) = foldr (\(c,a,t) -> Set.insert (c,a)) Set.empty . Map.elems $ defines
+ruleProduces (CRule _ _ _ _ _ _ _ _ _ _ defines _ _ _ _ _) = foldr (\(c,a,t) -> Set.insert (c,a)) Set.empty . Map.elems $ defines
 ruleProduces (CChildVisit child _ _ _ syn _ _) = foldr (\a -> Set.insert (child,a)) Set.empty . Map.keys $ syn
 
 countChildVisits :: [CRule] -> Int

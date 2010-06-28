@@ -8,8 +8,13 @@ src-derived/DefaultRules.ag : ./src-ag/Patterns.ag
 src-derived/GenerateCode.ag : ./src-ag/CodeSyntax.ag
 src-derived/GenerateCode.ag : ./src-ag/Patterns.ag
 src-derived/GenerateCode.ag : ./src-ag/DeclBlocks.ag
+src-derived/PrintOcamlCode.ag : ./src-ag/Code.ag
+src-derived/PrintOcamlCode.ag : ./src-ag/Patterns.ag
 src-derived/PrintCode.ag : ./src-ag/Code.ag
 src-derived/PrintCode.ag : ./src-ag/Patterns.ag
+src-derived/PrintVisitCode.ag : ./src-ag/CodeSyntax.ag
+src-derived/PrintVisitCode.ag : ./src-ag/Patterns.ag
+src-derived/PrintVisitCode.ag : ./src-ag/DeclBlocks.ag
 src-derived/PrintErrorMessages.ag : ./src-ag/ErrorMessages.ag
 src-derived/SemHsTokens.ag : ./src-ag/HsToken.ag
 src-derived/Transform.ag : ./src-ag/ConcreteSyntax.ag

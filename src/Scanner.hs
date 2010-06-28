@@ -65,6 +65,7 @@ scan opts
             scan' (',' :rs)          = (reserved "," p, advc 1 p, rs)
             scan' ('_' :rs)          = (reserved "_" p, advc 1 p, rs)
             scan' ('~' :rs)          = (reserved "~" p, advc 1 p, rs)
+            scan' ('+' :rs)          = (reserved "+" p, advc 1 p, rs)
             scan' ('<' :rs)          = (reserved "<" p, advc 1 p, rs)
             scan' ('[' :rs)          = (reserved "[" p, advc 1 p, rs)
             scan' (']' :rs)          = (reserved "]" p, advc 1 p, rs)
@@ -131,7 +132,8 @@ lowercaseKeywords = ["loc","lhs", "inst"]
 keywords = lowercaseKeywords ++
            [ "DATA", "EXT", "ATTR", "SEM","TYPE", "USE", "INCLUDE"
            , "SET","DERIVING","FOR", "WRAPPER", "MAYBE", "EITHER", "MAP", "INTMAP"
-           , "PRAGMA", "SEMPRAGMA", "MODULE", "ATTACH", "UNIQUEREF", "INH", "SYN"
+           , "PRAGMA", "SEMPRAGMA", "MODULE", "ATTACH", "UNIQUEREF", "INH", "SYN", "CHN"
+           , "AUGMENT", "AROUND"
            ]
 
 ncomment c p ('-':'}':xs) = advc' 2 p c  xs

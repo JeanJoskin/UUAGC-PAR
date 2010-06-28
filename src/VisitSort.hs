@@ -1,10 +1,12 @@
+{-# OPTIONS_GHC -XRank2Types #-}
 module VisitSort(visitSort) where
 	
 import Data.Graph(Vertex, Graph, Forest (..), Bounds)
-import qualified Data.IntSet as IntSet
-import Data.IntSet (IntSet)
 import Data.Tree(Tree(Node))
 import Data.Array ((!),bounds)
+
+import Control.Monad.ST
+import Data.Array.ST (STArray, newArray, readArray, writeArray)
 
 postorder :: Tree Vertex -> [Vertex]
 postorder (Node a ts) = postorderF ts ++ [a]
@@ -36,20 +38,20 @@ generate isCv g v  = let genBranch []     = (False,[])
 
 -- Below: Copied from Data.Graph
 
-newtype SetM s a = SetM { runSetM :: IntSet -> (a, IntSet) }
+newtype SetM s a = SetM { runSetM :: STArray s Vertex Bool -> ST s a }
 
 instance Monad (SetM s) where
-    return x     = SetM $ \ s -> (x, s)
-    SetM v >>= f = SetM $ \ s -> case v s of (x, s') -> runSetM (f x) s'
+    return x     = SetM $ const (return x)
+    SetM v >>= f = SetM $ \ s -> do { x <- v s; runSetM (f x) s }
 
-run          :: Bounds -> SetM s a -> a
-run _ act     = fst (runSetM act IntSet.empty)
+run          :: Bounds -> (forall s. SetM s a) -> a
+run bnds act  = runST (newArray bnds False >>= runSetM act)
 
 contains     :: Vertex -> SetM s Bool
-contains v    = SetM $ \ m -> (IntSet.member v m, m)
+contains v    = SetM $ \ m -> readArray m v
 
 include      :: Vertex -> SetM s ()
-include v     = SetM $ \ m -> ((), IntSet.insert v m)
+include v     = SetM $ \ m -> writeArray m v True
 
 prune        :: Bounds -> Forest Vertex -> Forest Vertex
 prune bnds ts = run bnds (chop ts)

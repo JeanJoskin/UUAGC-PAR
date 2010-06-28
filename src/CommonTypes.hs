@@ -70,7 +70,11 @@ type Strings     = [String]
 type NontermIdent     = Identifier
 type ConstructorIdent = Identifier
 type AttrOrderMap = Map NontermIdent (Map ConstructorIdent (Set Dependency))
-data Dependency = Dependency (Identifier,Identifier) (Identifier,Identifier) deriving (Eq,Ord,Show)
+data Dependency = Dependency Occurrence Occurrence deriving (Eq,Ord,Show)
+data Occurrence
+  = OccAttr Identifier Identifier
+  | OccRule Identifier
+  deriving (Eq,Ord,Show)
 
 type AttrEnv = ( [Identifier]
                , [(Identifier,Identifier)]
@@ -88,7 +92,7 @@ _FIRST = identifier "first__"
 _LAST  = identifier "last__"
 
 _DEPTH  = identifier "__depth"
-_PARFUN = identifier "__parfun"
+_DOPAR = identifier "__doPar"
 
 sdtype :: NontermIdent -> String
 sdtype nt = "T_"++getName nt
@@ -117,7 +121,7 @@ attrname isIn field attr | field == _LOC   = locname attr
                                
 locname v   = '_' : getName v
 instname v  = getName v ++ "_val_"
-inst'name v = getName v ++ "_"
+inst'name v = getName v ++ "_inst_"
 fieldname v =  getName v++"_"
 
 typeToAGString :: Type -> String
@@ -155,8 +159,9 @@ isSELFNonterminal :: Type -> Bool
 isSELFNonterminal (NT nt _) | nt == _SELF = True
 isSELFNonterminal _                       = False
 
+-- TODO: check if the name needs to be converted if the name is T_
 extractNonterminal :: Type -> NontermIdent
-extractNonterminal (NT n _) = n
+extractNonterminal (NT n _) = maybe n id (deforestedNt n)
 
 nontermArgs :: Type -> [String]
 nontermArgs tp
@@ -164,3 +169,7 @@ nontermArgs tp
       NT _ args -> args
       _         -> [] 
 
+deforestedNt :: Identifier -> Maybe Identifier
+deforestedNt nm
+  | take 2 (getName nm) == "T_" = Just (Ident (drop 2 (getName nm)) (getPos nm))
+  | otherwise = Nothing
