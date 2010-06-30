@@ -2,9 +2,9 @@
 module VisitSort(visitSort) where
 	
 import Data.Graph(Vertex, Graph, Forest (..), Bounds)
-import Data.Tree(Tree(Node))
+import Data.Tree(Tree(Node), rootLabel)
 import Data.Array ((!),bounds)
-
+import Data.List(sortBy)
 import Control.Monad.ST
 import Data.Array.ST (STArray, newArray, readArray, writeArray)
 
@@ -23,18 +23,29 @@ visitSort = postOrd
 --
 
 dfsVisitFirst :: (Vertex -> Bool) -> Graph -> [Vertex] -> Forest Vertex
-dfsVisitFirst isCv g vs = prune (bounds g) (map (snd . (generate isCv g)) vs)
+dfsVisitFirst isCv g vs = let dfs    = map (generate g) vs
+                              count  = map (countTree isCv) dfs
+                              sorted = zipWith sortTree dfs count
+                              pruned = prune (bounds g) sorted
+                          in pruned
 
-generate     :: (Vertex -> Bool) -> Graph -> Vertex -> (Bool,Tree Vertex)
-generate isCv g v  = let genBranch []     = (False,[])
-                         genBranch (x:xs) = let (c,t)   = generate isCv g x
-                                                (c',t') = genBranch xs
-                                                c2      = c || c'
-                                                t2      | c         = t:t'
-                                                        | otherwise = t' ++ [t]
-                                            in (c2, t2)
-                         (c,t)            = genBranch (g!v)
-                     in (c || isCv v, Node v t)
+
+generate :: Graph -> Vertex -> Tree Vertex
+generate g v  = Node v (map (generate g) (g!v))
+
+countTree :: (Vertex -> Bool) -> Tree Vertex -> Tree Int
+countTree isCv (Node a ts) = let ts' = map (countTree isCv) ts
+                                 c   = sum $ map rootLabel ts
+                                 c'  | isCv a    = c
+                                     | otherwise = 1 + c
+                             in Node c' ts'
+
+sortTree :: Tree Vertex -> Tree Int -> Tree Vertex
+sortTree (Node a ts) (Node _ cs) = let z = zip ts cs
+                                       s = sortBy (\a b -> compare (rootLabel $ snd b) (rootLabel $ snd a)) z
+                                       r = map fst s
+                                   in Node a r
+
 
 -- Below: Copied from Data.Graph
 
@@ -67,4 +78,4 @@ chop (Node v ts : us)
                   include v
                   as <- chop ts
                   bs <- chop us
-                  return (Node v as : bs)
+                  return (Node v as : bs) 
