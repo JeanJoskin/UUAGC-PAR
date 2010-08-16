@@ -50,9 +50,17 @@ TYPE CVisits = [CVisit]
 DATA  CVisit 
    |  CVisit  inh     :  Attributes
               syn     :  Attributes
-              vss     :  Sequence  -- sequence of "steps", where each "step" is either an attribute definition or a child visit
+              vss     :  CRuleTree  -- sequence of "steps", where each "step" is either an attribute definition or a child visit
               intra   :  Sequence  -- how to glue the visits together (child visits are child-intra's, attr-defs are attr-intra's)
               ordered :  Bool -- indicates that vss is ordered
+
+DATA CRuleTree
+  | CRPar left  : CRuleTree
+          right : CRuleTree
+  | CRSeq left  : CRuleTree
+          right : CRuleTree
+  | CRSingle r : CRule
+  | CRNone
 
 TYPE Sequence = [CRule]
 
@@ -88,3 +96,5 @@ SET AllCodeSyntax
     CProduction CProductions
     CVisits CVisit
     CRule
+    CRuleTree
+

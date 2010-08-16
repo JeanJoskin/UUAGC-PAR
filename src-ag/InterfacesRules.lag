@@ -15,6 +15,7 @@ import SequentialTypes
 import CodeSyntax
 import GrammarInfo
 import VisitSort
+import ParSchedule
 
 import qualified Data.Sequence as Seq
 import Data.Sequence(Seq)
@@ -59,7 +60,7 @@ Now we can define a visit sub-sequence as a list of vertices:
 
 \begin{Code}
 {
-type VisitSS = [Vertex]
+type VisitSS = ParTree Vertex
 }
 \end{Code}
 
@@ -234,9 +235,12 @@ SEM  Segment
                                        | otherwise = True
                              isCv = isVertexChildVisit @lhs.visitDescr
                          in if  null @syn
-                                then replicate (length @lhs.cons) []
-                                else let r = map (filter hasCode . (visitSort isCv @lhs.vssGraph)) @synOccur
-                                     in r
+                                then replicate (length @lhs.cons) TNone
+                                else let r = map (cleanParTree . cleanParTree . filterParTree hasCode . parSchedule @lhs.prev (ruleTable @lhs.info) @lhs.vssGraph) @synOccur
+                                     in  trace "T:" $ trace (show @lhs.prev) $ r
+
+                                -- else map (filterParTree (flip notElem @lhs.prev) . filterParTree hasCode . visitSort2 (ruleTable @lhs.info) isCv @lhs.vssGraph) @synOccur
+
 ATTR Segments Segment [ cons : {[ConstructorIdent]} | | ]
 SEM  Interface
   |  Interface seg.cons = @cons
@@ -247,8 +251,31 @@ sorting.
 
 \begin{Code}
 {
+
+remDbl :: Table CRule -> [(Identifier,Identifier,Maybe Type)] -> [Vertex] -> [Vertex]
+remDbl t prev [] = []
+remDbl t prev (v:vs) | inRange (bounds t) v = let  cr = t ! v
+                                                   addV = case findIndex cmp prev of
+                                                            Just _ -> id
+                                                            _      -> (v:)
+                                                   cmp (fld,attr,tp) = getField cr == fld && getAttr cr == attr && sameNT (getType cr) tp
+                                                   sameNT (Just (NT ntA _)) (Just (NT ntB _)) = ntA == ntB
+                                                   sameNT _          _                        = False
+                                                   def = Map.elems (getDefines cr)
+                                              in addV (remDbl t (def ++ prev) vs)
+                     | otherwise = v:remDbl t prev vs
+
+visitSort2 :: Table CRule -> (Vertex -> Bool) -> Graph -> [Vertex] -> ParTree Vertex
+visitSort2 t isCv g vs = flatParTree (remDbl t [] (visitSort isCv g vs))
+
+flatParTree :: [a] -> ParTree a
+flatParTree = foldr (TSeq . TSingle) TNone
+
+mkCRuleTree :: ParTree CRule -> CRuleTree
+mkCRuleTree = foldParTree (CRPar,CRSeq,CRSingle,CRNone)
+
 isVertexChildVisit :: Map Vertex ChildVisit -> Vertex -> Bool
-isVertexChildVisit = flip Map.member 
+isVertexChildVisit = flip Map.member
 }
 \end{Code}
 
@@ -270,18 +297,19 @@ and we remove this part from the subsequence
 
 \begin{Code}
 SEM  Segment [ | |  visitss : {[VisitSS]} ]
-  |  Segment  loc.visitss' = map (\\ @lhs.prev) @vss
-              loc.defined =  let defines v = case Map.lookup v @lhs.visitDescr of
+  |  Segment  loc.defined =  let defines v = case Map.lookup v @lhs.visitDescr of
                                                Nothing -> [v]
                                                Just (ChildVisit _ _ _ inh _) -> v:inh
-                             in concatMap (concatMap defines) @visitss
+                             in concatMap (concatMap defines . flattenParTree) (@visitss)
               lhs.prev = @lhs.prev ++ @defined
+              -- loc.visitss' = map (\\ @lhs.prev) @vss
 \end{Code}
 
 When more that one attribute is defined in the same rule, this rule is
 repeated in the visit subsequence. We do not want this.
 
 \begin{Code}
+{-
 SEM  Segment
   |  Segment  loc.visitss : {[[Vertex]]}
               loc.visitss = let  rem :: [(Identifier,Identifier,Maybe Type)] -> [Vertex] -> [Vertex]
@@ -300,6 +328,9 @@ SEM  Segment
                                    | otherwise = v:rem prev vs
                                  table = ruleTable @lhs.info
                             in map (rem []) @visitss'
+-}
+SEM Segment
+  | Segment   loc.visitss = @vss
 \end{Code}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -360,8 +391,8 @@ SEM  Segment
               loc.computed =  let computes v = case Map.lookup v @lhs.visitDescr of
                                                  Nothing -> Map.keys (getDefines (ruleTable @lhs.info ! v))
                                                  Just (ChildVisit _ _ _ _ syn) -> v:syn
-                              in concatMap (concatMap computes) @visitss
-              loc.intravisits = zipWith @iv @visitss @lhs.nextIntravisits
+                              in concatMap computes (concatMap flattenParTree @visitss)
+              loc.intravisits = zipWith @iv (map flattenParTree @visitss) @lhs.nextIntravisits
               loc.iv =  \vs next -> 
                           let needed = concatMap (@lhs.ddp !) vs
                           in nub (needed ++ next) \\ (@fromLhs ++ @computed)
@@ -412,9 +443,10 @@ SEM  Segment [ | | seg : CSegment
               loc.(inhmap,synmap) = let makemap = Map.fromList . map findType
 					findType v = getNtaNameType (attrTable @lhs.info ! v)
                                     in (makemap @inh,makemap @syn)
-              lhs.cvisits = let  mkVisit vss intra = CVisit @inhmap @synmap (markPar $ mkSequence vss) (mkSequence intra) True
+              lhs.cvisits = let  mkVisit vss intra = CVisit @inhmap @synmap (mkSequence2 vss) (mkSequence intra) True
                                  markPar = concat . markPCandidates . mkPGroups
                                  mkSequence = map mkRule
+                                 mkSequence2 = mkCRuleTree . fmap mkRule
                                  mkRule v = case Map.lookup v @lhs.visitDescr of
                                               Nothing -> ruleTable @lhs.info ! v
                                               Just (ChildVisit name nt n _ _) -> ccv name nt n @lhs.allInters
