@@ -26,8 +26,8 @@ import System.IO.Unsafe
 
 import CodeSyntax
 import GrammarInfo
-import CommonTypes (Type (..),Identifier)
-import SequentialTypes (getLhsNt,getCon,getField,getAttr,getType,getDefines)
+import CommonTypes (Type (..),Identifier (..))
+import SequentialTypes (getLhsNt,getCon,getField,getAttr,getType,getDefines,isChildVisit,ChildVisit (..))
 import Data.Array (Array)
 
 -- Utility functions
@@ -111,25 +111,29 @@ type TopOrd = Node -> Node -> Ordering
 
 -- Transformation functions
 
-labelNodes :: Array Graph.Vertex CRule -> Gr Int b -> Gr String b
-labelNodes tbl = let lbl v | Array.inRange (Array.bounds tbl) v = let r = tbl Array.! v
-                                                                  in  (show $ getLhsNt r) ++ "." ++ (show $ getCon r)++ "." ++ (show $ getField r) ++ "." ++ (show $ getAttr r) ++ " (" ++ (show v) ++ ")"
-                           | otherwise                          = (show v)
-                 in nmap lbl
+shortChildVisit :: ChildVisit -> String
+shortChildVisit (ChildVisit fld rhsNt nr inhs syns) = (getName rhsNt) ++ "." ++ (getName fld) ++ " #" ++ (show nr)
 
-dump :: (Show b) => String -> String -> Array Graph.Vertex CRule -> Gr Int b -> Gr Int b
-dump pnm nm tbl gr = viz' (pnm ++ '-':nm) (labelNodes tbl gr) `seq` gr
+shortCRule :: CRule -> String
+shortCRule r = (show $ getLhsNt r) ++ "." ++ (show $ getCon r)++ "." ++ (show $ getField r) ++ "." ++ (show $ getAttr r)
 
-dump' :: (Show b) => Array Graph.Vertex CRule -> Gr Int b -> Gr Int b
-dump' tbl = dump "dmp" "dump.dot" tbl
+labelNodes :: Array Node CRule -> Map Node ChildVisit -> Gr Int b -> Gr String b
+labelNodes tbl vd gr = let lbl (Just v) | Array.inRange (Array.bounds tbl) v = shortCRule (tbl Array.! v) ++ " (" ++ (show v) ++ ")"
+                                        | Map.member v vd                    = shortChildVisit (fromJust $ Map.lookup v vd) ++ " (" ++ (show v) ++ ")" 
+                                        | otherwise                          = (show v)
+                           lbl Nothing = "?"
+                       in nmap (lbl . lab gr) gr
 
-parSchedule :: [Graph.Vertex] -> Array Graph.Vertex CRule -> Graph.Graph -> [Graph.Vertex] -> ParTree Graph.Vertex
-parSchedule prev tbl gr es = 
-    let nm  = show es
-        gr' = dump nm "2-remrev" tbl . grev . delNodes prev . remUnreach es . dump nm "1-in" tbl . graphToGr $ gr
+dump :: (Show b) => Array Node CRule -> Map Node ChildVisit -> String -> String -> Gr Int b -> Gr Int b
+dump tbl vd pnm nm gr = viz' (pnm ++ '-':nm) (labelNodes tbl vd gr) `seq` gr
+
+parSchedule :: Array Node CRule -> Map Node ChildVisit -> Gr Graph.Vertex () -> [Graph.Vertex] -> ParTree Graph.Vertex
+parSchedule tbl vd gr es = 
+    let dmp nm = dump tbl vd (show es) nm
+        gr' = dmp "2-remrev" . grev . remUnreach es . dmp "1-in" $ gr
         s   = head (newNodes 1 gr')
         gr'' = insEdges (map (\n -> (s,n,())) (sources gr')) . insNode (s,-1) $ gr'
-    in  remTempNodes . parTree . dump nm "6-tree" tbl . taskTree . dump nm "5-split" tbl . splitTaskGraph . dump nm "4-lin" tbl . clean . linearize . dump nm "3-clean" tbl . clean . remDups tbl s $ gr''
+    in  remTempNodes . parTree . dmp "6-tree" . taskTree . dmp "5-split" . splitTaskGraph . dmp "4-lin" . clean . linearize . dmp "3-clean" . clean . remDups tbl s $ gr''
 
 remRedund :: Eq b => Gr a b -> Gr a b
 remRedund gr = let redundant e = not $ (hasLEdge e . trc . delLEdge e) gr
@@ -152,21 +156,6 @@ dups t p gr v | Array.inRange (Array.bounds t) lbl =
 
 remDups :: Array Graph.Vertex CRule -> Node -> Gr Int b -> Gr Int b
 remDups t n gr = delNodes (nub $ dups t [] gr n) gr
-
-{-
-remDbl :: Table CRule -> [(Identifier,Identifier,Maybe Type)] -> [Vertex] -> [Vertex]
-remDbl t prev [] = []
-remDbl t prev (v:vs) | inRange (bounds t) v = let  cr = t ! v
-                                                   addV = case findIndex cmp prev of
-                                                            Just _ -> id
-                                                            _      -> (v:)
-                                                   cmp (fld,attr,tp) = getField cr == fld && getAttr cr == attr && sameNT (getType cr) tp
-                                                   sameNT (Just (NT ntA _)) (Just (NT ntB _)) = ntA == ntB
-                                                   sameNT _          _                        = False
-                                                   def = Map.elems (getDefines cr)
-                                              in addV (remDbl t (def ++ prev) vs)
-                     | otherwise = v:remDbl t prev vs
--}
 
 clean :: Eq b => Gr a b -> Gr a b
 clean = remRedund

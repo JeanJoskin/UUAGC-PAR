@@ -232,7 +232,7 @@ monadicOpt opts = opts { monadic = True }
 ocamlOpt opts = opts { ocaml = True }
 visitorsOutputOpt opts = opts { visitorsOutput = True }
 statisticsOpt nm opts = opts { statsFile = Just nm }
-datParOpt      opts = opts{datPar  = True, depthAttr = True, cases = True, visit = True}
+datParOpt      opts = opts{datPar  = True, cases = True, visit = True}
 depthAttrOpt   opts = opts{depthAttr   = True}
 
 outputOpt  file  opts = opts{outputFiles  = file : outputFiles opts}            

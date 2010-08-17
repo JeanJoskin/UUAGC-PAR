@@ -269,6 +269,7 @@ depthRule nt cs =
         in makeRule (_LOC,_DEPTH) (Expression noPos tks) descr:
             [ propagate c t | (c,(NT t _)) <- cs ]
 
+{-
 doParRule :: [Rule]
 doParRule = let tks = [AGField _LHS _DEPTH noPos Nothing,
                         HsToken " < " noPos,
@@ -278,7 +279,7 @@ doParRule = let tks = [AGField _LHS _DEPTH noPos Nothing,
                         HsToken " " noPos,
                         HsToken (show parInterval) noPos ]
             in [makeRule (_LOC,_DOPAR) (Expression noPos tks) "doPar rule"]
-
+-}
 
 concatRE rsess = let (rss,ess) = unzip rsess
                  in (concat rss, concatSeq ess)
@@ -418,7 +419,7 @@ SEM Production
         depthRules = if @lhs.o_depthAttr then depthRule @lhs.nt [ (nm,tp) | (nm,tp,ho) <- @children.fields, isNonterminal tp ]
                                       else []
 
-        doParRules = if @lhs.o_datPar then doParRule else []
+        -- doParRules = if @lhs.o_datPar then doParRule else []
                                
         (rules5, errs5) 
           = copyRule @lhs.nt 
@@ -426,7 +427,7 @@ SEM Production
                      @lhs.cr 
                      locals
                      (lhs_env, (_LHS, others))                 
-    in (uRules++selfLocRules++selfRules++depthRules++doParRules++rules5++rules1, errors1><errs5)   
+    in (uRules++selfLocRules++selfRules++depthRules++rules5++rules1, errors1><errs5)   
     
 {
 addAugments :: (Identifier, [Expression]) -> [Rule] -> [Rule]

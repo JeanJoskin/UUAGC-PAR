@@ -24,11 +24,12 @@ import Data.Map(Map)
 import qualified Data.Set as Set
 import Data.Set(Set)
 import Data.Tree(Tree(Node))
-import Data.Graph(Graph, dfs, edges, buildG, transposeG, Forest (..), Bounds)
+import Data.Graph(Graph, dfs, edges, vertices, buildG, transposeG, Forest (..), Bounds)
 import Data.Maybe (fromJust)
 import Data.List (partition,transpose,(\\),nub,intersect, findIndex,sortBy)
 import Data.Array ((!),inRange,bounds,assocs)
 import Data.Foldable(toList)
+import qualified Data.Graph.Inductive as Fgl
 
 import Debug.Trace(trace)
 }
@@ -217,9 +218,11 @@ SEM  Segments
 To compute the visit subsequences, we pass the visit-subsequence graph down
 
 \begin{Code}
-ATTR Interfaces Interface Segments Segment [ vssGraph : Graph | | ]
+ATTR Interfaces Interface Segments Segment [ vssGraph : {Fgl.Gr Vertex ()} | | ]
 SEM  IRoot
-  |  IRoot inters.vssGraph = @visitssGraph
+  |  IRoot inters.vssGraph = let labelNode n     = (n,n)
+                                 labelEdge (a,b) = (a,b,())
+                             in  Fgl.mkGraph (map labelNode (vertices @visitssGraph)) (map labelEdge (edges @visitssGraph)) 
 \end{Code}
 
 Each segment computes subsequences for each production of the
@@ -234,12 +237,11 @@ SEM  Segment
               loc.vss =  let hasCode v | inRange (bounds (ruleTable @lhs.info)) v =  getHasCode (ruleTable @lhs.info ! v)
                                        | otherwise = True
                              isCv = isVertexChildVisit @lhs.visitDescr
+                             gr = Fgl.delNodes @lhs.prev @lhs.vssGraph
                          in if  null @syn
                                 then replicate (length @lhs.cons) TNone
-                                else let r = map (cleanParTree . cleanParTree . filterParTree hasCode . parSchedule @lhs.prev (ruleTable @lhs.info) @lhs.vssGraph) @synOccur
-                                     in  trace "T:" $ trace (show @lhs.prev) $ r
-
-                                -- else map (filterParTree (flip notElem @lhs.prev) . filterParTree hasCode . visitSort2 (ruleTable @lhs.info) isCv @lhs.vssGraph) @synOccur
+                                else let r = map (cleanParTree . filterParTree hasCode . parSchedule (ruleTable @lhs.info) (@lhs.visitDescr) gr) @synOccur
+                                     in  r
 
 ATTR Segments Segment [ cons : {[ConstructorIdent]} | | ]
 SEM  Interface
@@ -251,26 +253,6 @@ sorting.
 
 \begin{Code}
 {
-
-remDbl :: Table CRule -> [(Identifier,Identifier,Maybe Type)] -> [Vertex] -> [Vertex]
-remDbl t prev [] = []
-remDbl t prev (v:vs) | inRange (bounds t) v = let  cr = t ! v
-                                                   addV = case findIndex cmp prev of
-                                                            Just _ -> id
-                                                            _      -> (v:)
-                                                   cmp (fld,attr,tp) = getField cr == fld && getAttr cr == attr && sameNT (getType cr) tp
-                                                   sameNT (Just (NT ntA _)) (Just (NT ntB _)) = ntA == ntB
-                                                   sameNT _          _                        = False
-                                                   def = Map.elems (getDefines cr)
-                                              in addV (remDbl t (def ++ prev) vs)
-                     | otherwise = v:remDbl t prev vs
-
-visitSort2 :: Table CRule -> (Vertex -> Bool) -> Graph -> [Vertex] -> ParTree Vertex
-visitSort2 t isCv g vs = flatParTree (remDbl t [] (visitSort isCv g vs))
-
-flatParTree :: [a] -> ParTree a
-flatParTree = foldr (TSeq . TSingle) TNone
-
 mkCRuleTree :: ParTree CRule -> CRuleTree
 mkCRuleTree = foldParTree (CRPar,CRSeq,CRSingle,CRNone)
 

@@ -245,7 +245,7 @@ ATTR  CRuleTree [ | | execPlan : {Expr} ]
 SEM CRuleTree
   | CRPar lhs.execPlan = doPar @left.execPlan @right.execPlan
   | CRSeq lhs.execPlan = doSeq @left.execPlan @right.execPlan
-  | CRSingle lhs.execPlan = foldr doSeq (SimpleExpr "()") (map SimpleExpr (concatMap declBinds @r.decls))
+  | CRSingle lhs.execPlan = foldr1 doSeq (map SimpleExpr (concatMap declBinds @r.decls))
   | CRNone lhs.execPlan = SimpleExpr "()"
 
 {
@@ -474,16 +474,17 @@ SEM  CVisit
                               
                               mbEvalTp | null @loc.params = const Nothing
                                        | otherwise        = Just . idEvalType
-
+                              declFun | @o_datPar = mkParDecls @vss.execPlan 
+                                      | otherwise = mkDecls @loc.declsType
                               rhs = wrap
                                   . mkLambda [mkLambdaArg (lhsname True nm) (mbEvalTp $ typeToCodeType (Just @lhs.nt) @loc.params tp) | (nm,tp) <- Map.assocs @inh]
                                   $ @loc.addCostCentre $
                                   -- $ if @ordered && @loc.o_splitsems
                                   --  then @loc.blockFirstFunCall
                                   --  else
-                                    mkDecls @loc.declsType @decls @vss.execPlan
-                                         . mkTupleExpr @lhs.o_unbox (null $ Map.keys @inh)
-                                         $ map (SimpleExpr . lhsname False) (Map.keys @syn) ++ map SimpleExpr @nextVisitName
+                                    declFun @decls
+                                          . mkTupleExpr @lhs.o_unbox (null $ Map.keys @inh)
+                                          $ map (SimpleExpr . lhsname False) (Map.keys @syn) ++ map SimpleExpr @nextVisitName
                               wrap = if  @lhs.o_newtypes
                                          then \x -> App (typeName @lhs.nt @lhs.nr) [x] 
                                          else id
@@ -516,11 +517,9 @@ SEM  CVisit
             loc.o_datPar = @loc.o_case && @lhs.o_datPar
             loc.declsType = if @loc.o_do
                             then DeclsDo
-                            else if @loc.o_datPar
-                                 then DeclsPar
-                                 else if @loc.o_case
-                                      then DeclsCase
-                                      else DeclsLet
+                            else if @loc.o_case
+                                  then DeclsCase
+                                  else DeclsLet
             loc.o_splitsems = @ordered && @lhs.o_splitsems
 
 {
@@ -895,44 +894,26 @@ SEM CNonterminal
 -- Lets or nested Cases?
 -- or even a do-expression?
 
-data DeclsType = DeclsLet | DeclsCase | DeclsPar | DeclsDo
+data DeclsType = DeclsLet | DeclsCase | DeclsDo
 
-mkDecls :: DeclsType -> Decls -> Expr -> Expr -> Expr
-mkDecls _ = mkPar
-{-
+
+mkDecls :: DeclsType -> Decls -> Expr -> Expr
 mkDecls DeclsLet  = mkLet False
 mkDecls DeclsCase = mkLet True
-mkDecls DeclsPar  = mkPar
 mkDecls DeclsDo   = \decls -> Do (map toBind decls)
   where toBind (Decl lhs rhs _ _ _) = BindLet lhs rhs
         toBind d                  = d
--}
+
 mkLet :: Bool -> Decls -> Expr -> Expr
 mkLet False decls body = Let decls body
 mkLet True decls body = foldr oneCase body decls
 
-mkPar :: Decls -> Expr -> Expr -> Expr
-mkPar decls ep body = Let decls (doSeq ep body)-- foldr onePar body decls
-
-declSimpleFun n e u = Decl (Fun n []) e (Set.singleton n) u False
-betweenBraces s = '(':s ++ ")"
-mkSeq a b = App "pseq" [a,b]
+mkParDecls :: Expr -> Decls -> Expr -> Expr
+mkParDecls ep decls body = Let decls (doSeq ep body)
 
 boundVars :: Lhs -> [String]
 boundVars (TupleLhs xs) = xs
 boundVars _ = error "Unexpected type in BoundVars"
-
-parSwitch = "(if " ++ (locname _DOPAR) ++ " then par else pseq)"
-
-onePar :: Decl -> Expr -> Expr
-onePar (Decl lhs rhs b u parCan) exp | parCan    = let rhsAlias = "__rhs"
-                                                       binds = [ declSimpleFun rhsAlias rhs u,
-                                                                 Decl lhs (SimpleExpr rhsAlias) b (Set.singleton rhsAlias) False ]
-                                                       pseqList = foldr mkSeq (SimpleExpr "()") . map (SimpleExpr . betweenBraces)
-                                                       seqs l   = pseqList (rhsAlias:boundVars l)
-                                                   in Let binds (App parSwitch [seqs lhs,exp])
-                                     | otherwise = Case rhs [CaseAlt lhs exp]
-onePar _                         exp = exp
 
 oneCase :: Decl -> Expr -> Expr
 oneCase (Decl left rhs _ _ _) exp = Case rhs [CaseAlt left exp]
