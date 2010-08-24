@@ -245,7 +245,7 @@ ATTR  CRuleTree [ | | execPlan : {Expr} ]
 SEM CRuleTree
   | CRPar lhs.execPlan = doPar @left.execPlan @right.execPlan
   | CRSeq lhs.execPlan = doSeq @left.execPlan @right.execPlan
-  | CRSingle lhs.execPlan = foldr1 doSeq (map SimpleExpr (concatMap declBinds @r.decls))
+  | CRSingle lhs.execPlan = foldr1 doSeq (map (TupleExpr . flip (:) [] . SimpleExpr) (concatMap declBinds @r.decls))
   | CRNone lhs.execPlan = SimpleExpr "()"
 
 {
@@ -254,7 +254,8 @@ doSeq a b = App "pseq" [a,b]
 
 declBinds :: Decl -> [String]
 declBinds (Decl left rhs binds uses par) = Set.toList binds
-declBinds _ = error "Unimplemented code... don't know what this Decl binds to"
+declBinds (Comment _) = []
+declBinds d = error $ "Unimplemented code... don't know what this Decl binds to: " ++ (show d)
 }
 
 -------------------------------------------------------------------------------

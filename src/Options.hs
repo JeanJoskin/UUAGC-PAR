@@ -62,6 +62,7 @@ options     =  [ Option ['m']     []                (NoArg (moduleOpt Nothing)) 
                , Option []        ["statistics"]      (ReqArg statisticsOpt "FILE to append to") "Append statistics to FILE"
                , Option []        ["datpar"]  (NoArg datParOpt) "data parallel traversals (visit functions only)"
                , Option []        ["depth"]  (NoArg depthAttrOpt) "add depth attribute (testing purposes)"
+               , Option []        ["dumpschedgraphs"] (NoArg dumpSchedGraphsOpt) "Dump scheduling graphs"
                ]
 
 allc = "dcfsprm"
@@ -121,6 +122,7 @@ data Options = Options{ moduleName :: ModuleHeader
                       , statsFile :: Maybe String
                       , datPar :: Bool
                       , depthAttr :: Bool
+                      , dumpSchedGraphs :: Bool
                       } deriving Show
 noOptions = Options { moduleName    = NoName
                     , dataTypes     = False
@@ -177,6 +179,7 @@ noOptions = Options { moduleName    = NoName
                     , statsFile       = Nothing
                     , datPar          = False
                     , depthAttr       = False
+                    , dumpSchedGraphs = False
                     }
 
 
@@ -234,6 +237,7 @@ visitorsOutputOpt opts = opts { visitorsOutput = True }
 statisticsOpt nm opts = opts { statsFile = Just nm }
 datParOpt      opts = opts{datPar  = True, cases = True, visit = True}
 depthAttrOpt   opts = opts{depthAttr   = True}
+dumpSchedGraphsOpt opts = opts { dumpSchedGraphs = True }
 
 outputOpt  file  opts = opts{outputFiles  = file : outputFiles opts}            
 searchPathOpt  path  opts = opts{searchPath  = extract path ++ searchPath opts}            

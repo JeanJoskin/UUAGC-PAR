@@ -508,7 +508,7 @@ SEM Grammar
                                      }
 
             loc.(cInterfaceMap,cVisitsMap,cyclesErrors) =
-                              case computeSequential @info @directDep (@instDep ++ @aroundDep) of
+                              case computeSequential @info @lhs.options @directDep (@instDep ++ @aroundDep) of
                                            CycleFree    cim cvm   -> ( cim
                                                                      , cvm
                                                                      , []

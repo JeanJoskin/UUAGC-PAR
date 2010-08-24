@@ -2,7 +2,6 @@ PRAGMA strictdata
 PRAGMA optimize
 PRAGMA bangpats
 PRAGMA strictwrap
-PRAGMA datpar
 
 INCLUDE "AbstractSyntax.ag"
 INCLUDE "Patterns.ag"

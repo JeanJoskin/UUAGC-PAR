@@ -3,6 +3,7 @@ PRAGMA strictdata
 PRAGMA optimize
 PRAGMA bangpats
 PRAGMA strictwrap
+PRAGMA datpar
 
 INCLUDE "Interfaces.ag"
 
@@ -14,8 +15,8 @@ import Interfaces
 import SequentialTypes
 import CodeSyntax
 import GrammarInfo
-import VisitSort
 import ParSchedule
+import Options
 
 import qualified Data.Sequence as Seq
 import Data.Sequence(Seq)
@@ -34,6 +35,19 @@ import qualified Data.Graph.Inductive as Fgl
 import Debug.Trace(trace)
 }
 \end{Code}
+
+\section{Distributing options}
+
+\begin{code}
+ATTR IRoot [ options:{Options} | | ]
+ATTR Interfaces Interface Segments Segment [ o_dumpSchedGraphs : {Bool}
+                                             o_datPar          : {Bool} | | ]
+
+SEM IRoot
+  | IRoot inters.o_dumpSchedGraphs = dumpSchedGraphs @lhs.options
+          inters.o_datPar          = datPar @lhs.options
+
+\end{code}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Visit sub-sequence-graph}
@@ -236,12 +250,10 @@ SEM  Segment
   |  Segment  loc.synOccur = gather @lhs.info (@occurAs isLhs @syn)
               loc.vss =  let hasCode v | inRange (bounds (ruleTable @lhs.info)) v =  getHasCode (ruleTable @lhs.info ! v)
                                        | otherwise = True
-                             isCv = isVertexChildVisit @lhs.visitDescr
-                             gr = Fgl.delNodes @lhs.prev @lhs.vssGraph
+                             vssGraph' = Fgl.delNodes @lhs.prev @lhs.vssGraph
                          in if  null @syn
                                 then replicate (length @lhs.cons) TNone
-                                else let r = map (cleanParTree . filterParTree hasCode . parSchedule (ruleTable @lhs.info) (@lhs.visitDescr) gr) @synOccur
-                                     in  r
+                                else map (cleanParTree . filterParTree hasCode . parSchedule (ruleTable @lhs.info) @lhs.visitDescr @lhs.o_dumpSchedGraphs vssGraph') @synOccur
 
 ATTR Segments Segment [ cons : {[ConstructorIdent]} | | ]
 SEM  Interface

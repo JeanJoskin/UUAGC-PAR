@@ -119,6 +119,7 @@ DATA Lhs      | Pattern3    pat3  : Pattern
               | Unwrap name : {String} sub : Lhs
 
 DERIVING Type : Show
+DERIVING Decl Expr DataAlt Lhs NamedType CaseAlt : Show
 
 {
 -- Unboxed tuples
