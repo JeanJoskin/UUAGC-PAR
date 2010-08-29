@@ -1,7 +1,8 @@
-module ParSchedule (parSchedule, ParTree (..),flattenParTree,filterParTree,foldParTree,cleanParTree) where
+module ParSchedule (parSchedule,seqSchedule,ParTree (..),flattenParTree,filterParTree,foldParTree,cleanParTree,parTree,EdgeType,balancedParTree) where
 
 import qualified Data.Array as Array
 import Data.Graph.Inductive
+import Data.Graph.Inductive.Query.DFS (topsort')
 import Data.Graph.Inductive.Query.TransClos
 import qualified Data.Graph as Graph
 import Data.Graph.Inductive.Graphviz
@@ -122,15 +123,49 @@ labelNodes tbl vd gr = let lbl (Just v) | Array.inRange (Array.bounds tbl) v = s
 dump :: (Show b) => Array Node CRule -> Map Node ChildVisit -> String -> String -> Gr Int b -> Gr Int b
 dump tbl vd pnm nm gr = viz' (pnm ++ '-':nm) (labelNodes tbl vd gr) `seq` gr
 
-parSchedule :: Array Node CRule -> Map Node ChildVisit -> Bool -> Gr Graph.Vertex () -> [Graph.Vertex] -> ParTree Graph.Vertex
+seqSchedule :: Gr Node () -> [Node] -> Gr Node EdgeType
+seqSchedule gr es = let seqGraph ns = mkGraph (zip ns ns) (zipWith (\a b -> (a,b,Par)) (init ns) (tail ns))
+                    in  seqGraph . topsort' . grev . remUnreach es $ gr
+
+parSchedule :: Array Node CRule -> Map Node ChildVisit -> Bool -> Gr Node () -> [Node] -> Gr Node EdgeType
 parSchedule tbl vd dumpSched gr es = 
     let dmp nm | dumpSched = dump tbl vd (show es) nm
                | otherwise = id
         gr' = dmp "2-remrev" . grev . remUnreach es . dmp "1-in" $ gr
         s   = head (newNodes 1 gr')
         gr'' = insEdges (map (\n -> (s,n,())) (sources gr')) . insNode (s,-1) $ gr'
-    in  remTempNodes . parTree . dmp "7-tree" . taskTree . dmp "6-split" . splitTaskGraph . dmp "5-clean" . clean . dmp "4-lin" . linearize . dmp "3-clean" . clean . remDups tbl s $ gr''
+    in  dmp "7-tree" . taskTree . dmp "6-split" . splitTaskGraph . dmp "5-clean" . clean . dmp "4-lin" . linearize . dmp "3-clean" . clean . remDups tbl s $ gr''
 
+balanceTake = 2
+balanceTreshold = 5
+
+balancedParTree :: Map Node Int -> Gr Node EdgeType -> ParTree Node
+balancedParTree vw gr = let ss = splits gr
+                            gains = filter ((>) balanceTreshold . fst) (concatMap (splitGains vw gr) ss)
+                            sortGains = sortBy (\a b -> compare (fst a) (fst b)) gains
+                            selGains = take balanceTake gains
+                            seqEdges = concatMap snd selGains
+                        in  parTree' (Set.fromList seqEdges) gr
+
+weight :: Map Node Int -> Node -> Int
+weight vw n = case (Map.lookup n vw) of
+                (Just w) -> w
+                _        -> if n == -1 then 0 else 1
+
+splitGains :: Map Node Int -> Gr Node EdgeType -> Node -> [(Int,[Node])]
+splitGains vw gr s = let bs = map fst $ filter ((==) Par . snd) $ lsuc gr s
+                         pairs = combine bs
+                         brWeight n = weight vw n + foldr ((+) . brWeight) 0 (suc gr n)
+                         gain [a,b] = let a' = brWeight a
+                                          b' = brWeight b
+                                      in  (a' + b') - (max a' b')
+                     in  zip (map gain pairs) pairs
+
+parTree :: Gr Node EdgeType -> ParTree Node
+parTree = parTree' Set.empty
+
+parTree' :: Set Node -> Gr Node EdgeType -> ParTree Node
+parTree' sq = remTempNodes . mkParTree sq
 
 remRedund :: Eq b => Gr a b -> Gr a b
 remRedund gr = let tc = trc gr
@@ -146,15 +181,6 @@ remDupEdges gr = let f v d [] = d
                      ldup = map (\(a,b) -> (a,b,())) dup
                  in  insEdges ldup (delEdges dup gr)
 
-{-
-remRedund :: Eq b => Gr a b -> Gr a b
-remRedund gr = let tc = trc gr
-                   redundant ss (a,b) = not $ any (\x -> x /= b && hasEdge (x,b) tc) ss
-                   f (_,n,_,ss) = let ss' = map snd ss
-                                  in  filter (redundant ss') (zip (repeat n) ss')
-                   redEdges = concatMap (f . context gr) (nodes gr)
-               in  delEdges redEdges gr
--}
 dups :: Array Graph.Vertex CRule -> [(Identifier,Identifier,Maybe Type)] -> Gr Int b -> Node -> [Node]
 dups t p gr v | Array.inRange (Array.bounds t) lbl =
                 let cr = t Array.! lbl
@@ -301,19 +327,21 @@ splitTaskGraph tg = let sjs = sjs' tg
 taskTree :: Gr a () -> Gr a EdgeType
 taskTree stg = treeize (sjs' stg) stg
 
-parTree :: Gr Int EdgeType -> ParTree Node
-parTree tt = let src = sources tt
-                 bld n = let (p,s) = partition ((==) Par . snd) (lsuc tt n)
-                             p' = map (bld . fst) p
-                             s' = map (bld . fst) s
-                             (Just v) = lab tt n
-                         in  case (length p) of
-                               0 -> TSingle v
-                               1 -> TSeq (TSingle v) (head p')
-                               _ -> if length s > 0
-                                      then TSeq (TSingle v) $ TSeq (foldr1 TPar p') (head s')
-                                      else TSeq (TSingle v) (foldr1 TPar p')
-             in  if null src then TNone else bld (head src)
+mkParTree :: Set Node -> Gr Int EdgeType -> ParTree Node
+mkParTree sq tt = let src = sources tt
+                      bld n = let (p,s) = partition ((==) Par . snd) (lsuc tt n)
+                                  (sp,pp) = partition (flip Set.member sq . fst) p
+                                  p' = map (bld . fst) pp
+                                  s' = map (bld . fst) (sp ++ s)
+                                  (Just v) = lab tt n
+                              in  case ((length p',length s')) of
+                                    (0,0) -> TSingle v
+                                    (1,0) -> TSeq (TSingle v) (head p')
+                                    (0,_) -> TSeq (TSingle v) (foldr1 TSeq s')
+                                    (1,_) -> TSeq (TSingle v) (foldr1 TSeq (p' ++ s'))
+                                    (_,0) -> TSeq (TSingle v) (foldr1 TPar p')
+                                    (_,_) -> TSeq (TSingle v) $ TSeq (foldr1 TPar p') (foldr1 TSeq s')
+                  in  if null src then TNone else bld (head src)
 
 remTempNodes :: ParTree Node -> ParTree Node
 remTempNodes = filterParTree ((<) 0)

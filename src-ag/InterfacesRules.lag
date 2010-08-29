@@ -26,11 +26,12 @@ import qualified Data.Set as Set
 import Data.Set(Set)
 import Data.Tree(Tree(Node))
 import Data.Graph(Graph, dfs, edges, vertices, buildG, transposeG, Forest (..), Bounds)
-import Data.Maybe (fromJust)
-import Data.List (partition,transpose,(\\),nub,intersect, findIndex,sortBy)
+import Data.Maybe (fromJust,mapMaybe)
+import Data.List (partition,transpose,(\\),nub,intersect, findIndex,sortBy,find)
 import Data.Array ((!),inRange,bounds,assocs)
 import Data.Foldable(toList)
 import qualified Data.Graph.Inductive as Fgl
+import Data.Graph.Inductive.Query.DFS (topsort',topsort)
 
 import Debug.Trace(trace)
 }
@@ -246,18 +247,71 @@ attributes, nothing needs to be computed, so the visit subsequence
 is empty.
 
 \begin{Code}
+
+ATTR Interfaces Interface Segments Segment [ | | taskTrees USE {++} {[]} : {[(Int,[Fgl.Gr Vertex EdgeType])]} ]
+
+ATTR Interfaces Interface Segments Segment [ | | vertexToVisit USE {++} {[]} : {[(Vertex,Int)]} ]
+
+
 SEM  Segment
   |  Segment  loc.synOccur = gather @lhs.info (@occurAs isLhs @syn)
-              loc.vss =  let hasCode v | inRange (bounds (ruleTable @lhs.info)) v =  getHasCode (ruleTable @lhs.info ! v)
-                                       | otherwise = True
-                             vssGraph' = Fgl.delNodes @lhs.prev @lhs.vssGraph
-                         in if  null @syn
-                                then replicate (length @lhs.cons) TNone
-                                else map (cleanParTree . filterParTree hasCode . parSchedule (ruleTable @lhs.info) @lhs.visitDescr @lhs.o_dumpSchedGraphs vssGraph') @synOccur
+              loc.tts = let hasCode v | inRange (bounds (ruleTable @lhs.info)) v = getHasCode (ruleTable @lhs.info ! v)
+                                      | otherwise = True 
+                            vssGraph' = filterNodesD hasCode . Fgl.delNodes (@lhs.prev) $ @lhs.vssGraph
+                        in if null @syn
+                           then replicate (length @lhs.cons) Fgl.empty
+                           else if @lhs.o_datPar
+                                then map (parSchedule (ruleTable @lhs.info) @lhs.visitDescr @lhs.o_dumpSchedGraphs vssGraph') @synOccur
+                                else map (seqSchedule vssGraph') @synOccur
+              loc.vss = map (filter (/= (-1)) . topsort') @tts
+              loc.visitss = fromJust $ lookup (@lhs.vn) @lhs.parTrees
+              lhs.vertexToVisit = let isThisVisit (ChildVisit _ nt n _ _) = nt == @lhs.nt && n == @lhs.n
+                                      assocs = filter (isThisVisit . snd) (Map.assocs @lhs.visitDescr)
+                                  in  zip (map fst assocs) (repeat @lhs.vn)
+              lhs.taskTrees = [(@lhs.vn,@tts)]
+
+ATTR Interfaces Interface Segments Segment [ parTrees : {[(Int,[ParTree Vertex])]} | | ]
+
+SEM IRoot
+  | IRoot inters.parTrees = let balance (k,tts) = (k,map (balancedParTree vertexWeightMap) tts)
+                                flat (k,tts) = (k,map parTree tts)
+                                vertexToVisit = Map.fromList @inters.vertexToVisit
+                                taskTrees = Map.fromList @inters.taskTrees
+                                isRule = inRange (bounds (ruleTable @lhs.info))
+                                consDeps tt = mapMaybe (flip Map.lookup vertexToVisit) (Fgl.nodes tt)
+                                ntDeps vn = zip (concatMap consDeps (fromJust $ Map.lookup vn taskTrees)) (repeat vn)
+                                depGr = (Fgl.mkUGraph [0 .. @inters.vn - 1] (nub $ concatMap ntDeps [0 .. @inters.vn - 1])) :: Fgl.Gr () ()
+                                nodeWeight m n = case (Map.lookup n vertexToVisit) of
+                                                   (Just nx) -> fromJust $ Map.lookup nx m
+                                                   _         -> if isRule n then 1 else 0
+                                consWeight m tt = foldr ((+) . nodeWeight m) 0 (Fgl.nodes tt)
+                                visitWeight m vn = let (Just cs) = Map.lookup vn taskTrees
+                                                       total = foldr ((+) . consWeight (Map.insert vn 0 m)) 0 cs
+                                                       w = total `div` length cs
+                                                   in  Map.insert vn w m
+                                weightMap = foldl visitWeight Map.empty (topsort depGr)
+                                vertexWeightMap = Map.map (\v -> fromJust $ Map.lookup v weightMap) vertexToVisit
+                            in  if datPar @lhs.options
+                                then map balance @inters.taskTrees
+                                else map flat @inters.taskTrees
+
 
 ATTR Segments Segment [ cons : {[ConstructorIdent]} | | ]
 SEM  Interface
   |  Interface seg.cons = @cons
+
+ATTR Segments Segment [ nt : {NontermIdent} | | ]
+SEM  Interface
+  |  Interface seg.nt = @nt
+
+ATTR Interfaces Interface Segments Segment [ | vn : {Int} | ]
+
+SEM Segments
+  | Cons tl.vn = @lhs.vn + 1
+
+SEM IRoot
+  | IRoot inters.vn = 0
+
 \end{Code}
 
 We adapt the topological sort to take a list of vertices to start
@@ -265,8 +319,27 @@ sorting.
 
 \begin{Code}
 {
+
 mkCRuleTree :: ParTree CRule -> CRuleTree
 mkCRuleTree = foldParTree (CRPar,CRSeq,CRSingle,CRNone)
+
+filterNodesD :: (Fgl.Node -> Bool) -> Fgl.Gr a () -> Fgl.Gr a ()
+filterNodesD f gr = delNodesD (filter (not . f) (Fgl.nodes gr)) gr
+
+delNodesD :: [Fgl.Node] -> Fgl.Gr a () -> Fgl.Gr a ()
+delNodesD ns gr = foldr delNodeD gr ns
+
+hasLEdge :: Fgl.Gr a b -> Fgl.LEdge c -> Bool
+hasLEdge gr (a,b,_) = elem b (Fgl.suc gr a)
+
+delNodeD :: Fgl.Node -> Fgl.Gr a () -> Fgl.Gr a ()
+delNodeD n gr = let (i,_,_,o) = Fgl.context gr n
+                    es = filter (not . hasLEdge gr) (edgePairs (map snd i) (map snd o))
+                in  Fgl.insEdges es . Fgl.delNode n $ gr
+
+edgePairs :: [a] -> [b] -> [(a,b,())]
+edgePairs xs ys = let p x = map (\y -> (x,y,())) ys
+                  in  concatMap p xs
 
 isVertexChildVisit :: Map Vertex ChildVisit -> Vertex -> Bool
 isVertexChildVisit = flip Map.member
@@ -294,7 +367,7 @@ SEM  Segment [ | |  visitss : {[VisitSS]} ]
   |  Segment  loc.defined =  let defines v = case Map.lookup v @lhs.visitDescr of
                                                Nothing -> [v]
                                                Just (ChildVisit _ _ _ inh _) -> v:inh
-                             in concatMap (concatMap defines . flattenParTree) (@visitss)
+                             in concatMap (concatMap defines) (@vss)
               lhs.prev = @lhs.prev ++ @defined
               -- loc.visitss' = map (\\ @lhs.prev) @vss
 \end{Code}
@@ -323,8 +396,6 @@ SEM  Segment
                                  table = ruleTable @lhs.info
                             in map (rem []) @visitss'
 -}
-SEM Segment
-  | Segment   loc.visitss = @vss
 \end{Code}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -385,8 +456,8 @@ SEM  Segment
               loc.computed =  let computes v = case Map.lookup v @lhs.visitDescr of
                                                  Nothing -> Map.keys (getDefines (ruleTable @lhs.info ! v))
                                                  Just (ChildVisit _ _ _ _ syn) -> v:syn
-                              in concatMap computes (concatMap flattenParTree @visitss)
-              loc.intravisits = zipWith @iv (map flattenParTree @visitss) @lhs.nextIntravisits
+                              in concatMap computes (concat @vss)
+              loc.intravisits = zipWith @iv @vss @lhs.nextIntravisits
               loc.iv =  \vs next -> 
                           let needed = concatMap (@lhs.ddp !) vs
                           in nub (needed ++ next) \\ (@fromLhs ++ @computed)
@@ -435,12 +506,11 @@ SEM  Segment [ | | seg : CSegment
               loc.inhmap : {Map Identifier Type}
               loc.synmap : {Map Identifier Type}
               loc.(inhmap,synmap) = let makemap = Map.fromList . map findType
-					findType v = getNtaNameType (attrTable @lhs.info ! v)
+                                        findType v = getNtaNameType (attrTable @lhs.info ! v)
                                     in (makemap @inh,makemap @syn)
-              lhs.cvisits = let  mkVisit vss intra = CVisit @inhmap @synmap (mkSequence2 vss) (mkSequence intra) True
-                                 markPar = concat . markPCandidates . mkPGroups
+              lhs.cvisits = let  mkVisit vss intra = CVisit @inhmap @synmap (mkRuleTree vss) (mkSequence intra) True
                                  mkSequence = map mkRule
-                                 mkSequence2 = mkCRuleTree . fmap mkRule
+                                 mkRuleTree = mkCRuleTree . fmap mkRule
                                  mkRule v = case Map.lookup v @lhs.visitDescr of
                                               Nothing -> ruleTable @lhs.info ! v
                                               Just (ChildVisit name nt n _ _) -> ccv name nt n @lhs.allInters
