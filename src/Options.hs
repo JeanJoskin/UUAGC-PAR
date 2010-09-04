@@ -63,6 +63,7 @@ options     =  [ Option ['m']     []                (NoArg (moduleOpt Nothing)) 
                , Option []        ["datpar"]  (NoArg datParOpt) "data parallel traversals (visit functions only)"
                , Option []        ["depth"]  (NoArg depthAttrOpt) "add depth attribute (testing purposes)"
                , Option []        ["dumpschedgraphs"] (NoArg dumpSchedGraphsOpt) "Dump scheduling graphs"
+               , Option []        ["useprofile"]    (ReqArg useProfileOpt "profile file") "Use time profile for scheduling (use -px format)"
                ]
 
 allc = "dcfsprm"
@@ -123,6 +124,7 @@ data Options = Options{ moduleName :: ModuleHeader
                       , datPar :: Bool
                       , depthAttr :: Bool
                       , dumpSchedGraphs :: Bool
+                      , useProfile :: Maybe String
                       } deriving Show
 noOptions = Options { moduleName    = NoName
                     , dataTypes     = False
@@ -180,6 +182,7 @@ noOptions = Options { moduleName    = NoName
                     , datPar          = False
                     , depthAttr       = False
                     , dumpSchedGraphs = False
+                    , useProfile      = Nothing
                     }
 
 
@@ -238,6 +241,7 @@ statisticsOpt nm opts = opts { statsFile = Just nm }
 datParOpt      opts = opts{datPar  = True, cases = True, visit = True}
 depthAttrOpt   opts = opts{depthAttr   = True}
 dumpSchedGraphsOpt opts = opts { dumpSchedGraphs = True }
+useProfileOpt nm opts = opts { useProfile = Just nm }
 
 outputOpt  file  opts = opts{outputFiles  = file : outputFiles opts}            
 searchPathOpt  path  opts = opts{searchPath  = extract path ++ searchPath opts}            

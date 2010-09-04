@@ -2,6 +2,7 @@ PRAGMA strictdata
 PRAGMA optimize
 PRAGMA bangpats
 PRAGMA strictwrap
+PRAGMA datpar
 
 INCLUDE "Code.ag"
 INCLUDE "Patterns.ag"

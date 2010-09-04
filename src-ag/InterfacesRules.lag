@@ -17,6 +17,7 @@ import CodeSyntax
 import GrammarInfo
 import ParSchedule
 import Options
+import ParseProfile
 
 import qualified Data.Sequence as Seq
 import Data.Sequence(Seq)
@@ -32,8 +33,10 @@ import Data.Array ((!),inRange,bounds,assocs)
 import Data.Foldable(toList)
 import qualified Data.Graph.Inductive as Fgl
 import Data.Graph.Inductive.Query.DFS (topsort',topsort)
+import qualified Data.IntMap as IntMap
 
 import Debug.Trace(trace)
+import System.IO.Unsafe
 }
 \end{Code}
 
@@ -144,7 +147,8 @@ of an attribute occurrence
 ATTR  Interfaces Interface Segments Segment 
       [ visitDescr : {Map Vertex ChildVisit} | | ]
 SEM  IRoot
-  |  IRoot  inters.visitDescr = Map.fromList @descr
+  |  IRoot loc.visitDescr = Map.fromList @descr 
+           inters.visitDescr = @loc.visitDescr
 ATTR  Interfaces Interface Segments Segment
       [ | |  newedges USE {Seq.><} {Seq.empty} : {Seq Edge } 
              descr USE {Seq.><} {Seq.empty} : {Seq (Vertex,ChildVisit)} ]
@@ -248,7 +252,7 @@ is empty.
 
 \begin{Code}
 
-ATTR Interfaces Interface Segments Segment [ | | taskTrees USE {++} {[]} : {[(Int,[Fgl.Gr Vertex EdgeType])]} ]
+ATTR Interfaces Interface Segments Segment [ | | taskTrees USE {++} {[]} : {[(Int,[PSTree])]} ]
 
 ATTR Interfaces Interface Segments Segment [ | | vertexToVisit USE {++} {[]} : {[(Vertex,Int)]} ]
 
@@ -273,27 +277,83 @@ SEM  Segment
 ATTR Interfaces Interface Segments Segment [ parTrees : {[(Int,[ParTree Vertex])]} | | ]
 
 SEM IRoot
-  | IRoot inters.parTrees = let balance (k,tts) = (k,map (balancedParTree vertexWeightMap) tts)
-                                flat (k,tts) = (k,map parTree tts)
-                                vertexToVisit = Map.fromList @inters.vertexToVisit
+  | IRoot inters.parTrees = let vertexToVisit = Map.fromList @inters.vertexToVisit
                                 taskTrees = Map.fromList @inters.taskTrees
-                                isRule = inRange (bounds (ruleTable @lhs.info))
-                                consDeps tt = mapMaybe (flip Map.lookup vertexToVisit) (Fgl.nodes tt)
-                                ntDeps vn = zip (concatMap consDeps (fromJust $ Map.lookup vn taskTrees)) (repeat vn)
-                                depGr = (Fgl.mkUGraph [0 .. @inters.vn - 1] (nub $ concatMap ntDeps [0 .. @inters.vn - 1])) :: Fgl.Gr () ()
-                                nodeWeight m n = case (Map.lookup n vertexToVisit) of
-                                                   (Just nx) -> fromJust $ Map.lookup nx m
-                                                   _         -> if isRule n then 1 else 0
-                                consWeight m tt = foldr ((+) . nodeWeight m) 0 (Fgl.nodes tt)
-                                visitWeight m vn = let (Just cs) = Map.lookup vn taskTrees
-                                                       total = foldr ((+) . consWeight (Map.insert vn 0 m)) 0 cs
-                                                       w = total `div` length cs
-                                                   in  Map.insert vn w m
-                                weightMap = foldl visitWeight Map.empty (topsort depGr)
+                                depGr = mkDepGr vertexToVisit taskTrees @inters.vn
+                                weightMap = case (useProfile @lhs.options) of
+                                              (Just profile) -> proWeightMap vertexToVisit @loc.visitDescr @inters.conss profile 
+                                              _ -> evWeightMap vertexToVisit taskTrees (ruleTable @lhs.info) depGr
                                 vertexWeightMap = Map.map (\v -> fromJust $ Map.lookup v weightMap) vertexToVisit
+                                gains = concatMap (parGains vertexWeightMap) (concat $ Map.elems taskTrees)
+                                topGains = sortBy (\a b -> compare (fst a) (fst b)) gains
+                                selGains = trace (show gains) $ concatMap snd (take 3 topGains)
+                                balance (k,tts) = (k,map (parTree (Set.fromList selGains)) tts)
+                                flat (k,tts) = (k,map (parTree Set.empty) tts)
                             in  if datPar @lhs.options
                                 then map balance @inters.taskTrees
                                 else map flat @inters.taskTrees
+
+ATTR Interfaces Interface [  | | conss USE {++} {[]} : {[(NontermIdent,[ConstructorIdent])]} ]
+
+SEM Interface
+  | Interface lhs.conss = [(@nt,@cons)]
+
+{
+mkDepGr :: Map Vertex Int -> Map Vertex [PSTree] -> Int -> Fgl.UGr
+mkDepGr vertexToVisit taskTrees nvn =
+      let consDeps tt = mapMaybe (flip Map.lookup vertexToVisit) (Fgl.nodes tt)
+          ntDeps vn = zip (concatMap consDeps (fromJust $ Map.lookup vn taskTrees)) (repeat vn)
+      in  Fgl.mkUGraph [0 .. nvn - 1] (nub $ concatMap ntDeps [0 .. nvn - 1])
+
+multiLookup :: Eq a => a -> [(a,b)] -> [b]
+multiLookup f [] = []
+multiLookup f ((a,b):xs) | a == f = b:multiLookup f xs
+                         | otherwise = multiLookup f xs
+
+proWeightMap :: Map Vertex Int -> Map Vertex ChildVisit -> [(NontermIdent,[ConstructorIdent])] -> String -> Map Vertex Int
+proWeightMap vertexToVisit visitDescr conss profile =
+   let dat = unsafePerformIO (readFile profile)
+       parsed = case (parseProfile profile dat) of
+                  (Just p) -> p
+                  _ -> error "Unable to parse profile. Did you use +RTS -px?"
+       pg = profileGraph parsed
+       visitTo1Vertex = foldr (\(v,vi) -> Map.insert vi v) Map.empty (Map.assocs vertexToVisit)
+       visitNames v = let (Just (ChildVisit fld nt nr _ _))  = Map.lookup v visitDescr
+                      in  map (\cons -> "b:" ++ show nt ++ ":" ++ show cons ++ ":" ++ show nr) (fromJust $ lookup nt conss)
+       nameToVisit = Map.fromList $ concatMap (\(vi,v) -> zip (visitNames v) (repeat vi)) (Map.assocs visitTo1Vertex)
+       nodeVisit p n = let (Just node) = IntMap.lookup n pg
+                       in  if elem n p
+                           then []
+                           else case (Map.lookup (nodeName node) nameToVisit) of
+                                  (Just v) -> [(v,n)]
+                                  _        -> let r = concatMap (nodeVisit (n:p) . parentNodeNumber) (parentNodes node)
+                                              in  zip (nub (map fst r)) (repeat n) ++ r
+       visitToNodes = nub $ concatMap (nodeVisit []) (IntMap.keys pg)
+       visitCost vi = let nodes = map (\n -> fromJust $ IntMap.lookup n pg) (nub $ multiLookup vi visitToNodes)
+                          cost n = foldr ((+) . fromInteger . ticks) 0 (parentNodes n)
+                      in  foldr ((+) . cost) 0 nodes 
+       visitToCost = map (\vi -> (vi,visitCost vi)) (Map.keys visitTo1Vertex)
+   in  Map.fromList visitToCost
+
+evWeightMap :: Map Vertex Int -> Map Vertex [PSTree] -> Table CRule -> Fgl.Gr () () -> Map Vertex Int
+evWeightMap vertexToVisit taskTrees rTable depGr =
+      let isRule = inRange (bounds rTable)
+          countRec vns g = let ns = Fgl.nodes g
+                               childVisits = mapMaybe (\n -> Map.lookup n vertexToVisit) ns
+                           in  length $ filter (flip elem vns) childVisits
+          nodeWeight m n = case (Map.lookup n vertexToVisit) of
+                             (Just nx) -> fromJust $ Map.lookup nx m
+                             _         -> if isRule n then 1 else 0
+          consWeight m tt = foldr ((+) . nodeWeight m) 0 (Fgl.nodes tt)
+          grpWeight m vns = let cs = concatMap (fromJust . flip Map.lookup taskTrees) vns
+                                nc = length vns
+                                w c = (consWeight m' c) ^ (countRec vns c)
+                                m' = foldr (uncurry Map.insert) m (zip vns (repeat 0))
+                                weight = (foldr ((+) . w) 0 cs) `div` nc
+                            in  foldr (uncurry Map.insert) m' (zip vns (repeat weight))
+      in  foldl grpWeight Map.empty (Fgl.scc depGr)
+
+}
 
 
 ATTR Segments Segment [ cons : {[ConstructorIdent]} | | ]

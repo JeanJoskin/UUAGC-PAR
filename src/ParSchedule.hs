@@ -1,4 +1,4 @@
-module ParSchedule (parSchedule,seqSchedule,ParTree (..),flattenParTree,filterParTree,foldParTree,cleanParTree,parTree,EdgeType,balancedParTree) where
+module ParSchedule (parSchedule,seqSchedule,ParTree (..),flattenParTree,filterParTree,foldParTree,cleanParTree,parTree,PSTree,parGains) where
 
 import qualified Data.Array as Array
 import Data.Graph.Inductive
@@ -105,6 +105,8 @@ data EdgeType = Seq | Par deriving (Show,Eq)
 
 type TopOrd = Node -> Node -> Ordering
 
+type PSTree = Gr Node EdgeType
+
 -- Transformation functions
 
 shortChildVisit :: ChildVisit -> String
@@ -123,11 +125,11 @@ labelNodes tbl vd gr = let lbl (Just v) | Array.inRange (Array.bounds tbl) v = s
 dump :: (Show b) => Array Node CRule -> Map Node ChildVisit -> String -> String -> Gr Int b -> Gr Int b
 dump tbl vd pnm nm gr = viz' (pnm ++ '-':nm) (labelNodes tbl vd gr) `seq` gr
 
-seqSchedule :: Gr Node () -> [Node] -> Gr Node EdgeType
+seqSchedule :: Gr Node () -> [Node] -> PSTree
 seqSchedule gr es = let seqGraph ns = mkGraph (zip ns ns) (zipWith (\a b -> (a,b,Par)) (init ns) (tail ns))
                     in  seqGraph . topsort' . grev . remUnreach es $ gr
 
-parSchedule :: Array Node CRule -> Map Node ChildVisit -> Bool -> Gr Node () -> [Node] -> Gr Node EdgeType
+parSchedule :: Array Node CRule -> Map Node ChildVisit -> Bool -> Gr Node () -> [Node] -> PSTree
 parSchedule tbl vd dumpSched gr es = 
     let dmp nm | dumpSched = dump tbl vd (show es) nm
                | otherwise = id
@@ -136,36 +138,46 @@ parSchedule tbl vd dumpSched gr es =
         gr'' = insEdges (map (\n -> (s,n,())) (sources gr')) . insNode (s,-1) $ gr'
     in  dmp "7-tree" . taskTree . dmp "6-split" . splitTaskGraph . dmp "5-clean" . clean . dmp "4-lin" . linearize . dmp "3-clean" . clean . remDups tbl s $ gr''
 
-balanceTake = 2
+balanceTake = 1
 balanceTreshold = 5
 
-balancedParTree :: Map Node Int -> Gr Node EdgeType -> ParTree Node
-balancedParTree vw gr = let ss = splits gr
-                            gains = filter ((>) balanceTreshold . fst) (concatMap (splitGains vw gr) ss)
-                            sortGains = sortBy (\a b -> compare (fst a) (fst b)) gains
-                            selGains = take balanceTake gains
+{-
+balancedParTree :: Map Node Int -> PSTree -> ParTree Node
+balancedParTree gr = let ss = splits gr
+                         gains = filter ((>) balanceTreshold . fst) (concatMap (parGains vw gr) ss)
+                          topGains = sortBy (\a b -> compare (fst a) (fst b)) gains
+                            selGains = take balanceTake topGains
                             seqEdges = concatMap snd selGains
-                        in  parTree' (Set.fromList seqEdges) gr
+                        in  trace (show seqEdges) $ parTree' (Set.fromList seqEdges) gr
+-}
 
 weight :: Map Node Int -> Node -> Int
 weight vw n = case (Map.lookup n vw) of
                 (Just w) -> w
-                _        -> if n == -1 then 0 else 1
+                _        -> 0
 
-splitGains :: Map Node Int -> Gr Node EdgeType -> Node -> [(Int,[Node])]
-splitGains vw gr s = let bs = map fst $ filter ((==) Par . snd) $ lsuc gr s
-                         pairs = combine bs
-                         brWeight n = weight vw n + foldr ((+) . brWeight) 0 (suc gr n)
-                         gain [a,b] = let a' = brWeight a
-                                          b' = brWeight b
-                                      in  (a' + b') - (max a' b')
-                     in  zip (map gain pairs) pairs
+parGain1 :: Map Node Int -> PSTree -> [Node] -> Int
+parGain1 vw gr [a,b] = let w x = foldr ((+) . weight vw) 0 (dfs [x] gr)
+                           wa = w a
+                           wb = w b
+                       in  (wa + wb) - (max wa wb)
+    
+parGains1 :: Map Node Int -> PSTree -> Node -> [(Int,[Node])]
+parGains1 vw gr s = let pBranches = map fst $ filter ((==) Par . snd) $ lsuc gr s
+                        pairs = combine pBranches
+                    in  zip (map (parGain1 vw gr) pairs) pairs
 
-parTree :: Gr Node EdgeType -> ParTree Node
-parTree = parTree' Set.empty
+parGains :: Map Node Int -> PSTree -> [(Int,[Node])]
+parGains vw gr = let ss = splits gr
+                     gains = concatMap (parGains1 vw gr) ss
+                     gains' = filter ((<) balanceTreshold . fst) gains
+                 in  sortBy (\a b -> compare (fst a) (fst b)) gains'
 
-parTree' :: Set Node -> Gr Node EdgeType -> ParTree Node
-parTree' sq = remTempNodes . mkParTree sq
+parTree' :: PSTree -> ParTree Node
+parTree' = parTree Set.empty
+
+parTree :: Set Node -> PSTree -> ParTree Node
+parTree sq = remTempNodes . mkParTree sq
 
 remRedund :: Eq b => Gr a b -> Gr a b
 remRedund gr = let tc = trc gr
@@ -207,7 +219,6 @@ join tc ts bs = let reachSets = map (suc tc) bs
                     joins | null reachSets = []
                           | otherwise      = foldr1 intersect reachSets
                 in  nearestJoin ts joins
-
 
 nearestGrp :: Gr a b -> Gr a () -> TopOrd -> Node -> [[Node]] -> [Node] -> Maybe SplitJoin
 nearestGrp gr tc ts s grp2 xjs = let js  = mapMaybe (\ns -> maybe Nothing (Just . (,) ns) (join tc ts ns)) grp2
@@ -327,7 +338,7 @@ splitTaskGraph tg = let sjs = sjs' tg
 taskTree :: Gr a () -> Gr a EdgeType
 taskTree stg = treeize (sjs' stg) stg
 
-mkParTree :: Set Node -> Gr Int EdgeType -> ParTree Node
+mkParTree :: Set Node -> PSTree -> ParTree Node
 mkParTree sq tt = let src = sources tt
                       bld n = let (p,s) = partition ((==) Par . snd) (lsuc tt n)
                                   (sp,pp) = partition (flip Set.member sq . fst) p
