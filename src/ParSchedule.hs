@@ -341,13 +341,12 @@ taskTree stg = treeize (sjs' stg) stg
 mkParTree :: Set Node -> PSTree -> ParTree Node
 mkParTree sq tt = let src = sources tt
                       bld n = let (p,s) = partition ((==) Par . snd) (lsuc tt n)
-                                  (sp,pp) = partition (flip Set.member sq . fst) p
+                                  (pp,sp) = partition (flip Set.member sq . fst) p
                                   p' = map (bld . fst) pp
                                   s' = map (bld . fst) (sp ++ s)
                                   (Just v) = lab tt n
-                              in  case ((length p',length s')) of
+                              in  case (length p',length s') of
                                     (0,0) -> TSingle v
-                                    (1,0) -> TSeq (TSingle v) (head p')
                                     (0,_) -> TSeq (TSingle v) (foldr1 TSeq s')
                                     (1,_) -> TSeq (TSingle v) (foldr1 TSeq (p' ++ s'))
                                     (_,0) -> TSeq (TSingle v) (foldr1 TPar p')

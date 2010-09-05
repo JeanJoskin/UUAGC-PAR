@@ -51,6 +51,8 @@ SEM IRoot
   | IRoot inters.o_dumpSchedGraphs = dumpSchedGraphs @lhs.options
           inters.o_datPar          = datPar @lhs.options
 
+ATTR IRoot [ profileData : {Maybe Profile} | | ]
+
 \end{code}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -280,13 +282,13 @@ SEM IRoot
   | IRoot inters.parTrees = let vertexToVisit = Map.fromList @inters.vertexToVisit
                                 taskTrees = Map.fromList @inters.taskTrees
                                 depGr = mkDepGr vertexToVisit taskTrees @inters.vn
-                                weightMap = case (useProfile @lhs.options) of
-                                              (Just profile) -> proWeightMap vertexToVisit @loc.visitDescr @inters.conss profile 
+                                weightMap = case (@lhs.profileData) of
+                                              (Just profile) -> proWeightMap vertexToVisit @loc.visitDescr depGr @inters.conss profile 
                                               _ -> evWeightMap vertexToVisit taskTrees (ruleTable @lhs.info) depGr
                                 vertexWeightMap = Map.map (\v -> fromJust $ Map.lookup v weightMap) vertexToVisit
                                 gains = concatMap (parGains vertexWeightMap) (concat $ Map.elems taskTrees)
                                 topGains = sortBy (\a b -> compare (fst a) (fst b)) gains
-                                selGains = trace (show gains) $ concatMap snd (take 3 topGains)
+                                selGains = trace (show vertexWeightMap) $ concatMap snd (take 3 topGains)
                                 balance (k,tts) = (k,map (parTree (Set.fromList selGains)) tts)
                                 flat (k,tts) = (k,map (parTree Set.empty) tts)
                             in  if datPar @lhs.options
@@ -310,13 +312,10 @@ multiLookup f [] = []
 multiLookup f ((a,b):xs) | a == f = b:multiLookup f xs
                          | otherwise = multiLookup f xs
 
-proWeightMap :: Map Vertex Int -> Map Vertex ChildVisit -> [(NontermIdent,[ConstructorIdent])] -> String -> Map Vertex Int
-proWeightMap vertexToVisit visitDescr conss profile =
-   let dat = unsafePerformIO (readFile profile)
-       parsed = case (parseProfile profile dat) of
-                  (Just p) -> p
-                  _ -> error "Unable to parse profile. Did you use +RTS -px?"
-       pg = profileGraph parsed
+proWeightMap :: Map Vertex Int -> Map Vertex ChildVisit -> Fgl.Gr () () -> [(NontermIdent,[ConstructorIdent])] -> Profile -> Map Vertex Int
+proWeightMap vertexToVisit visitDescr depGr conss pd =
+   let tc = Fgl.trc (Fgl.grev depGr)
+       pg = profileGraph pd
        visitTo1Vertex = foldr (\(v,vi) -> Map.insert vi v) Map.empty (Map.assocs vertexToVisit)
        visitNames v = let (Just (ChildVisit fld nt nr _ _))  = Map.lookup v visitDescr
                       in  map (\cons -> "b:" ++ show nt ++ ":" ++ show cons ++ ":" ++ show nr) (fromJust $ lookup nt conss)
@@ -332,8 +331,11 @@ proWeightMap vertexToVisit visitDescr conss profile =
        visitCost vi = let nodes = map (\n -> fromJust $ IntMap.lookup n pg) (nub $ multiLookup vi visitToNodes)
                           cost n = foldr ((+) . fromInteger . ticks) 0 (parentNodes n)
                       in  foldr ((+) . cost) 0 nodes 
-       visitToCost = map (\vi -> (vi,visitCost vi)) (Map.keys visitTo1Vertex)
-   in  Map.fromList visitToCost
+       visitToCost1 = Map.fromList $ map (\vi -> (vi,visitCost vi)) (Map.keys visitTo1Vertex)
+       transCost vi = let deps = filter (/= vi) (Fgl.suc tc vi)
+                      in  sum (mapMaybe (flip Map.lookup visitToCost1) deps)
+       visitToCost = Map.mapWithKey (\vi c -> transCost vi + c) visitToCost1
+   in  visitToCost
 
 evWeightMap :: Map Vertex Int -> Map Vertex [PSTree] -> Table CRule -> Fgl.Gr () () -> Map Vertex Int
 evWeightMap vertexToVisit taskTrees rTable depGr =

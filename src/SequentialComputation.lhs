@@ -21,6 +21,7 @@ import Data.List(partition,nub,(\\),delete,minimumBy)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Options
+import ParseProfile (Profile)
 
 \end{code}
 
@@ -292,11 +293,12 @@ findInstCycles instToSynEdges tdp
 \section{Tying it together}
 
 \begin{code}
-generateVisits :: Info -> Options -> MGraph -> MGraph -> [Edge] -> (CInterfaceMap, CVisitsMap, [Edge])
-generateVisits info opt tds tdp dpr
+generateVisits :: Info -> Options -> Maybe Profile -> MGraph -> MGraph -> [Edge] -> (CInterfaceMap, CVisitsMap, [Edge])
+generateVisits info opt prof tds tdp dpr
   = let  inters = makeInterfaces info (fmap Map.keys tds)
          inhs = Inh_IRoot{ info_Inh_IRoot = info
                          , options_Inh_IRoot = opt
+                         , profileData_Inh_IRoot = prof
                          , tdp_Inh_IRoot  = fmap Map.keys tdp
                          , dpr_Inh_IRoot  = dpr
                          }
@@ -357,8 +359,8 @@ isLocLoc :: Table CRule -> EdgePath -> Bool
 isLocLoc rt ((s,t),_) = isLocal (rt ! s) && isLocal (rt ! t)
                         -- || (isInst (rt ! s) && isInst (rt ! t))
 
-computeSequential :: Info -> Options -> [Edge] -> [Edge] -> CycleStatus
-computeSequential info opt dpr instToSynEdges
+computeSequential :: Info -> Options -> Maybe Profile -> [Edge] -> [Edge] -> CycleStatus
+computeSequential info opt prof dpr instToSynEdges
   = runST
     (do let bigBounds   = bounds (tdpToTds info)
             smallBounds = bounds (tdsToTdp info)
@@ -382,7 +384,7 @@ computeSequential info opt dpr instToSynEdges
                                   let cyc4 = findInstCycles instToSynEdges tdp2
                                   if  not (null cyc4)
                                       then do return (InstCycle (reportLocalCycle tds2 cyc4))              -- then report an error.
-                                      else do let  (cim,cvm,edp) = generateVisits info opt tds2 tdp2 dpr
+                                      else do let  (cim,cvm,edp) = generateVisits info opt prof tds2 tdp2 dpr
                                               mapM_ (insertTds info comp) (map (singleStep AttrIndu) edp) -- insert dependencies induced by visit scheduling
                                               tds3 <- freeze tds
                                               let cyc3 = findCycles info tds3

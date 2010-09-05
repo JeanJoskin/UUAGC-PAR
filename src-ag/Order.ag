@@ -20,6 +20,7 @@ import SequentialComputation
 import SequentialTypes
 import CodeSyntax
 import GrammarInfo
+import ParseProfile (Profile)
 import HsToken(HsTokensRoot(HsTokensRoot))
 import HsTokenScanner(lexTokens)
 import SemHsTokens(sem_HsTokensRoot,wrap_HsTokensRoot, Syn_HsTokensRoot(..),Inh_HsTokensRoot(..))
@@ -130,6 +131,9 @@ SEM Grammar
                      .o_unbox   = unbox     @lhs.options
                      .o_case    = cases     @lhs.options
                      .prefix    = prefix    @lhs.options
+
+ATTR Grammar [ profileData : {Maybe Profile} | | ]
+
 
 ------------------------------------------------------------------
 -- Building a mapping from Vertices to Ints
@@ -508,7 +512,7 @@ SEM Grammar
                                      }
 
             loc.(cInterfaceMap,cVisitsMap,cyclesErrors) =
-                              case computeSequential @info @lhs.options @directDep (@instDep ++ @aroundDep) of
+                              case computeSequential @info @lhs.options @lhs.profileData @directDep (@instDep ++ @aroundDep) of
                                            CycleFree    cim cvm   -> ( cim
                                                                      , cvm
                                                                      , []

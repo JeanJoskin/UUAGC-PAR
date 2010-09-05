@@ -11,6 +11,7 @@ import qualified Data.Map as Map
 import qualified Data.Sequence as Seq ((><))
 import Data.Foldable(toList)
 import Pretty
+import ParseProfile
 
 import Debug.Trace
 
@@ -61,6 +62,7 @@ main
 compile :: Options -> String -> String -> IO ()
 compile flags input output
  = do (output0,parseErrors) <- parseAG flags (searchPath flags) (inputFile input)
+      profileData <- loadProfile (useProfile flags)
       irrefutableMap <- readIrrefutableMap flags
 
       let output1   = Pass1.wrap_AG              (Pass1.sem_AG                                 output0 ) Pass1.Inh_AG       {Pass1.options_Inh_AG       = flags}
@@ -72,7 +74,7 @@ compile flags input output
           grammar2  = Pass2.output_Syn_Grammar   output2
           outputV   = PassV.wrap_Grammar         (PassV.sem_Grammar grammar2                           ) PassV.Inh_Grammar  {}
           grammarV  = PassV.visage_Syn_Grammar   outputV
-          output3   = Pass3.wrap_Grammar         (Pass3.sem_Grammar grammar2                           ) Pass3.Inh_Grammar  {Pass3.options_Inh_Grammar  = flags'}
+          output3   = Pass3.wrap_Grammar         (Pass3.sem_Grammar grammar2                           ) Pass3.Inh_Grammar  {Pass3.options_Inh_Grammar  = flags', Pass3.profileData_Inh_Grammar = profileData}
           grammar3  = Pass3.output_Syn_Grammar   output3
           output4   = Pass4.wrap_CGrammar        (Pass4.sem_CGrammar(Pass3.output_Syn_Grammar  output3)) Pass4.Inh_CGrammar {Pass4.options_Inh_CGrammar = flags'}
           output4a  = Pass4a.wrap_CGrammar       (Pass4a.sem_CGrammar(Pass3.output_Syn_Grammar output3)) Pass4a.Inh_CGrammar {Pass4a.options_Inh_CGrammar = flags'}
@@ -229,7 +231,11 @@ compile flags input output
                       Just file -> appendFile file line
                     if not (null errorsToStopOn) then exitFailure else return ()
 
-
+loadProfile :: Maybe String -> IO (Maybe Profile)
+loadProfile (Just fn) = do
+                          contents <- readFile fn
+                          return (parseProfile fn contents)
+loadProfile Nothing   = return Nothing
 
 formatErrors :: PP_Doc -> String
 formatErrors pp = disp pp 5000 ""

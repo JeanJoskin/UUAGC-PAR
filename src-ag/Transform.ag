@@ -712,7 +712,7 @@ SEM Elem
                                          "genlinepragmas" -> o { genLinePragmas = True }
                                          "newtypes"       -> o { newtypes = True }
                                          "nonewtypes"     -> o { newtypes = False }
-                                         "datpar"         -> o { datPar = True, depthAttr = True, cases = True, visit = True }
+                                         "datpar"         -> o { datPar = True, cases = True, visit = True }
                                          _              -> o
                           in \o -> foldr mk o @names
 
