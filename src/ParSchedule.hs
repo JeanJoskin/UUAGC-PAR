@@ -133,10 +133,10 @@ parSchedule :: Array Node CRule -> Map Node ChildVisit -> Bool -> Gr Node () -> 
 parSchedule tbl vd dumpSched gr es = 
     let dmp nm | dumpSched = dump tbl vd (show es) nm
                | otherwise = id
-        gr' = dmp "2-remrev" . grev . remUnreach es . dmp "1-in" $ gr
+        gr' = dmp "3-clean" . clean . dmp "2-remrev" . grev . remUnreach es . dmp "1-in" $ gr
         s   = head (newNodes 1 gr')
         gr'' = insEdges (map (\n -> (s,n,())) (sources gr')) . insNode (s,-1) $ gr'
-    in  dmp "7-tree" . taskTree . dmp "6-split" . splitTaskGraph . dmp "5-clean" . clean . dmp "4-lin" . linearize . dmp "3-clean" . clean . remDups tbl s $ gr''
+    in  dmp "7-tree" . taskTree . dmp "6-split" . splitTaskGraph . dmp "5-clean" . clean . dmp "4-lin" . linearize . dmp "3-nodup" . remDups tbl s $ gr''
 
 balanceTake = 1
 balanceTreshold = 5
@@ -193,6 +193,9 @@ remDupEdges gr = let f v d [] = d
                      ldup = map (\(a,b) -> (a,b,())) dup
                  in  insEdges ldup (delEdges dup gr)
 
+clean :: Gr a () -> Gr a ()
+clean = remRedund . remDupEdges
+
 dups :: Array Graph.Vertex CRule -> [(Identifier,Identifier,Maybe Type)] -> Gr Int b -> Node -> [Node]
 dups t p gr v | Array.inRange (Array.bounds t) lbl =
                 let cr = t Array.! lbl
@@ -210,9 +213,6 @@ dups t p gr v | Array.inRange (Array.bounds t) lbl =
 
 remDups :: Array Graph.Vertex CRule -> Node -> Gr Int b -> Gr Int b
 remDups t n gr = delNodes (nub $ dups t [] gr n) gr
-
-clean :: Gr a () -> Gr a ()
-clean = remRedund . remDupEdges
 
 join :: Gr a () -> TopOrd -> [Node] -> Maybe Node
 join tc ts bs = let reachSets = map (suc tc) bs

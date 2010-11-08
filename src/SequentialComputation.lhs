@@ -14,14 +14,15 @@ import GrammarInfo
 import Debug.Trace
 import Control.Monad(liftM,when,unless)
 import Control.Monad.ST(ST, runST)
-import Data.Array(Array,(!),bounds,elems)
+import Data.Array(Array,(!),bounds,elems,assocs,indices)
 import Data.Array.ST(STArray, newArray, readArray, writeArray, freeze, thaw)
 import Data.Maybe(listToMaybe,mapMaybe,isJust,fromJust)
-import Data.List(partition,nub,(\\),delete,minimumBy)
+import Data.List(partition,nub,(\\),delete,minimumBy,intersect)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Options
-import ParseProfile (Profile)
+import ParseProfile
+import qualified Data.IntMap as IntMap
 
 \end{code}
 
@@ -213,13 +214,39 @@ See modules Interfaces and InterfacesRules for more information.
 %format sem_Segments_Nil = "[]_{Segments}"
 
 \begin{code}
-makeInterfaces :: Info -> Graph -> T_IRoot
-makeInterfaces info tds
-  =  let interslist = reverse . makeInterface tds []
+makeInterfaces :: Info -> [Vertex] -> Graph -> T_IRoot
+makeInterfaces info sep tds
+  =  let interslist = reverse . makeInterface sep tds []
          mkSegments = foldr (sem_Segments_Cons . uncurry sem_Segment_Segment) sem_Segments_Nil . interslist
          mkInter ((nt,cons),lmh) = sem_Interface_Interface nt cons (mkSegments lmh)
          inters = foldr (sem_Interfaces_Cons . mkInter) sem_Interfaces_Nil (zip (nonts info) (lmh info))
      in sem_IRoot_IRoot inters
+
+
+sepAttrs :: Info -> Maybe Profile -> [Vertex]
+sepAttrs info Nothing = []
+sepAttrs info (Just prof) =
+    let vs = assocs (ruleTable info)
+        pg = profileGraph prof
+        name (CRule nm _ _ nt con fld _ _ _ _ _ _ _ _ _ _) =
+             Just ((show nt) ++ ":" ++ (show con) ++ ":" ++ (show fld) ++ "." ++ (show nm))
+        nameToVertex = Map.fromList $ mapMaybe (\(v,r) -> maybe Nothing (\n -> Just (n,v)) (name r)) vs
+        nodeVertex p n = let (Just node) = IntMap.lookup n pg
+                         in  if elem n p
+                             then []
+                             else case (Map.lookup (nodeName node) nameToVertex) of
+                                    (Just v) -> [(v,n)]
+                                    _        -> let r = concatMap (nodeVertex (n:p) . parentNodeNumber) (parentNodes node)
+                                                in  zip (nub (map fst r)) (repeat n) ++ r
+        vertexToNodes = nub $ concatMap (nodeVertex []) (IntMap.keys pg)
+        vertexCost vi = let nodes = map (\n -> fromJust $ IntMap.lookup n pg) (nub $ multiLookup vi vertexToNodes)
+                            cost n = foldr ((+) . fromInteger . ticks) 0 (parentNodes n)
+                        in  foldr ((+) . cost) 0 nodes 
+        vertexToCost = map (\v -> (v,vertexCost v)) (indices (ruleTable info))
+        topVertices = nub $ map fst $ filter ((<) 5 . snd) vertexToCost
+        tdsVertices = filter (>=0) (map ((!) (tdpToTds info)) topVertices)
+    in  [] -- tdsVertices
+
 \end{code}
 
 The sinks of a graph are those vertices that have no outgoing
@@ -231,6 +258,7 @@ been computed.
 \begin{code}
 isSink :: Graph -> [Vertex] -> Vertex -> Bool
 isSink graph del v = null (graph ! v \\ del)
+
 \end{code}
 
 Now we can make interfaces by taking inherited sinks and synthesized
@@ -238,14 +266,20 @@ sinks alternatively. If there are no synthesized attributes at all,
 generate an interface with one visit computing nothing.
 
 \begin{code}
-makeInterface :: Graph -> [Vertex] -> LMH -> [([Vertex],[Vertex])]
-makeInterface tds del (l,m,h)
+makeInterface :: [Vertex] -> Graph -> [Vertex] -> LMH -> [([Vertex],[Vertex])]
+makeInterface sep tds del (l,m,h)
   | m > h = [([],[])]
-  | otherwise = let  syn = filter (isSink tds del) ([m..h] \\ del)
+  | otherwise = let  sepSyn = intersect ([m..h] \\ del) sep
+                     sepSynSink = filter (isSink tds del) sepSyn
+                     syn | null sepSynSink = filter (isSink tds del) ([m..h] \\ del)
+                         | otherwise       = sepSynSink
                      del' = del ++ syn
-                     inh = filter (isSink tds del') ([l..(m-1)] \\ del')
+                     sepInh = intersect ([l..(m-1)] \\ del') sep
+                     sepInhSink = filter (isSink tds del') sepInh
+                     inh | null sepInhSink = filter (isSink tds del') ([l..(m-1)] \\ del')
+                         | otherwise       = sepInhSink
                      del'' = del' ++ inh
-                     rest = makeInterface tds del'' (l,m,h)
+                     rest = makeInterface sep tds del'' (l,m,h)
                 in if  null inh && null syn
                        then []
                        else (inh,syn) : rest
@@ -295,7 +329,8 @@ findInstCycles instToSynEdges tdp
 \begin{code}
 generateVisits :: Info -> Options -> Maybe Profile -> MGraph -> MGraph -> [Edge] -> (CInterfaceMap, CVisitsMap, [Edge])
 generateVisits info opt prof tds tdp dpr
-  = let  inters = makeInterfaces info (fmap Map.keys tds)
+  = let  sep = sepAttrs info prof
+         inters = makeInterfaces info sep (fmap Map.keys tds)
          inhs = Inh_IRoot{ info_Inh_IRoot = info
                          , options_Inh_IRoot = opt
                          , profileData_Inh_IRoot = prof

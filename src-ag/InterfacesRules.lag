@@ -263,7 +263,7 @@ SEM  Segment
   |  Segment  loc.synOccur = gather @lhs.info (@occurAs isLhs @syn)
               loc.tts = let hasCode v | inRange (bounds (ruleTable @lhs.info)) v = getHasCode (ruleTable @lhs.info ! v)
                                       | otherwise = True 
-                            vssGraph' = filterNodesD hasCode . Fgl.delNodes (@lhs.prev) $ @lhs.vssGraph
+                            vssGraph' = filterNodesD hasCode . Fgl.delNodes @lhs.prev $ @lhs.vssGraph
                         in if null @syn
                            then replicate (length @lhs.cons) Fgl.empty
                            else if @lhs.o_datPar
