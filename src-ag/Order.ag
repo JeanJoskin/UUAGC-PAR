@@ -554,7 +554,7 @@ SEM  Production
                                             visits = findWithErr1 "Production.cVisits.con" @con prodsVisitsMap
                                          in visits
                                    else  let  vss = nubBy eqCRuleDefines @gathRules ++ @children.singlevisits
-                                              vss' = foldr (CRSeq . CRSingle) CRNone vss
+                                              vss' = CTSeq (map CTRule vss)
                                          in  [CVisit @lhs.inh @lhs.syn vss' [] False]
 
 -- Declarations for single visits

@@ -222,31 +222,6 @@ makeInterfaces info sep tds
          inters = foldr (sem_Interfaces_Cons . mkInter) sem_Interfaces_Nil (zip (nonts info) (lmh info))
      in sem_IRoot_IRoot inters
 
-
-sepAttrs :: Info -> Maybe Profile -> [Vertex]
-sepAttrs info Nothing = []
-sepAttrs info (Just prof) =
-    let vs = assocs (ruleTable info)
-        pg = profileGraph prof
-        name (CRule nm _ _ nt con fld _ _ _ _ _ _ _ _ _ _) =
-             Just ((show nt) ++ ":" ++ (show con) ++ ":" ++ (show fld) ++ "." ++ (show nm))
-        nameToVertex = Map.fromList $ mapMaybe (\(v,r) -> maybe Nothing (\n -> Just (n,v)) (name r)) vs
-        nodeVertex p n = let (Just node) = IntMap.lookup n pg
-                         in  if elem n p
-                             then []
-                             else case (Map.lookup (nodeName node) nameToVertex) of
-                                    (Just v) -> [(v,n)]
-                                    _        -> let r = concatMap (nodeVertex (n:p) . parentNodeNumber) (parentNodes node)
-                                                in  zip (nub (map fst r)) (repeat n) ++ r
-        vertexToNodes = nub $ concatMap (nodeVertex []) (IntMap.keys pg)
-        vertexCost vi = let nodes = map (\n -> fromJust $ IntMap.lookup n pg) (nub $ multiLookup vi vertexToNodes)
-                            cost n = foldr ((+) . fromInteger . ticks) 0 (parentNodes n)
-                        in  foldr ((+) . cost) 0 nodes 
-        vertexToCost = map (\v -> (v,vertexCost v)) (indices (ruleTable info))
-        topVertices = nub $ map fst $ filter ((<) 5 . snd) vertexToCost
-        tdsVertices = filter (>=0) (map ((!) (tdpToTds info)) topVertices)
-    in  [] -- tdsVertices
-
 \end{code}
 
 The sinks of a graph are those vertices that have no outgoing
@@ -329,7 +304,7 @@ findInstCycles instToSynEdges tdp
 \begin{code}
 generateVisits :: Info -> Options -> Maybe Profile -> MGraph -> MGraph -> [Edge] -> (CInterfaceMap, CVisitsMap, [Edge])
 generateVisits info opt prof tds tdp dpr
-  = let  sep = sepAttrs info prof
+  = let  sep = []
          inters = makeInterfaces info sep (fmap Map.keys tds)
          inhs = Inh_IRoot{ info_Inh_IRoot = info
                          , options_Inh_IRoot = opt

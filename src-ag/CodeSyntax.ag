@@ -54,13 +54,12 @@ DATA  CVisit
               intra   :  Sequence  -- how to glue the visits together (child visits are child-intra's, attr-defs are attr-intra's)
               ordered :  Bool -- indicates that vss is ordered
 
+TYPE CRuleTrees = [CRuleTree]
+
 DATA CRuleTree
-  | CRPar left  : CRuleTree
-          right : CRuleTree
-  | CRSeq left  : CRuleTree
-          right : CRuleTree
-  | CRSingle r : CRule
-  | CRNone
+  | CTPar xs  : CRuleTrees
+  | CTSeq xs  : CRuleTrees
+  | CTRule r  : CRule
 
 TYPE Sequence = [CRule]
 
@@ -96,5 +95,5 @@ SET AllCodeSyntax
     CProduction CProductions
     CVisits CVisit
     CRule
-    CRuleTree
+    CRuleTree CRuleTrees
 

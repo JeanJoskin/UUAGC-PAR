@@ -42,7 +42,7 @@ import Maybe(fromJust,isJust)
 ATTR CNonterminals CNonterminal
      CProductions CProduction
      CVisits CVisit
-     Sequence CRuleTree CRule
+     Sequence CRuleTree CRuleTrees CRule
      CInterface CSegments CSegment
        [ o_unbox,o_sig,o_sem,o_newtypes,o_case,o_pretty,o_rename,o_cata,o_strictwrap,o_splitsems,o_traces,o_costcentre,o_linePragmas,o_monadic,o_datPar : Bool
          o_data : {Maybe Bool}
@@ -77,25 +77,25 @@ SEM CGrammar
 -------------------------------------------------------------------------------
 
 ATTR  CProductions CProduction CVisits 
-      CVisit Sequence CRuleTree CRule CInterface 
+      CVisit Sequence CRuleTree CRuleTrees CRule CInterface 
       CSegments CSegment [ nt:NontermIdent inh,syn:Attributes | | ]
 SEM  CNonterminal
   |  CNonterminal  inter.(inh,syn,nt) = (@inh,@syn,@nt)
                   prods.(inh,syn,nt) = (@inh,@syn,@nt)
 
-ATTR CVisits CVisit Sequence CRuleTree CRule [ con:ConstructorIdent 
+ATTR CVisits CVisit Sequence CRuleTree CRuleTrees CRule [ con:ConstructorIdent 
                                      terminals : {[Identifier]} | | ]
 SEM  CProduction
   |  CProduction  visits.con = @con
                    visits.terminals = @terminals
 
-ATTR CNonterminals CNonterminal CSegments CSegment CInterface CProductions CProduction CVisits CVisit Sequence CRuleTree CRule [ paramMap : ParamMap | | ]
+ATTR CNonterminals CNonterminal CSegments CSegment CInterface CProductions CProduction CVisits CVisit Sequence CRuleTree CRuleTrees CRule [ paramMap : ParamMap | | ]
 
 SEM CGrammar
   | CGrammar nonts.paramMap = @paramMap
 
 
-ATTR CVisits CVisit Sequence CRuleTree CRule [ paramInstMap : {Map Identifier (NontermIdent, [String])} | | ]
+ATTR CVisits CVisit Sequence CRuleTree CRuleTrees CRule [ paramInstMap : {Map Identifier (NontermIdent, [String])} | | ]
 
 SEM CProduction
   | CProduction
@@ -121,7 +121,7 @@ appContext mp nt tp
   = maybe tp (\ctx -> CtxApp (map (\(n,ns) -> (getName n, ns)) ctx) tp) $ Map.lookup nt mp
 }
 
-ATTR CNonterminals CNonterminal CProductions CProduction CVisits CVisit CRuleTree Sequence CRule [ allNts : {Set NontermIdent} | | ]
+ATTR CNonterminals CNonterminal CProductions CProduction CVisits CVisit CRuleTree CRuleTrees Sequence CRule [ allNts : {Set NontermIdent} | | ]
 
 SEM CGrammar
   | CGrammar
@@ -139,7 +139,7 @@ SEM CNonterminal
 -- attributes and returns synthesized attributes and the next visit.
 -------------------------------------------------------------------------------
 
-ATTR  Sequence CRuleTree CRule [ | | decls USE {++} {[]} : {Decls} ]
+ATTR  Sequence CRuleTree CRuleTrees CRule [ | | decls USE {++} {[]} : {Decls} ]
 SEM  CRule
   |  CRule loc.instTypes = [ (n, (t, mb)) | (n, NT t _, mb) <- @lhs.children ]
            loc.originComment = if  @lhs.o_pretty
@@ -221,9 +221,9 @@ unwrapSem True nm e = Case e alts
         right = SimpleExpr "x"
 }
 
-ATTR Sequence CRuleTree CRule [ children : {[(Identifier,Type,Maybe (Maybe Type))]} ||]
+ATTR Sequence CRuleTree CRuleTrees CRule [ children : {[(Identifier,Type,Maybe (Maybe Type))]} ||]
 
-ATTR Sequence CRuleTree CRule Pattern Patterns [|| definedInsts USE {++} {[]} : {[Identifier]} ]
+ATTR Sequence CRuleTree CRuleTrees CRule Pattern Patterns [|| definedInsts USE {++} {[]} : {[Identifier]} ]
 SEM Pattern
   | Alias lhs.definedInsts = (if @field == _INST then [@attr] else []) ++ @pat.definedInsts
 
@@ -241,28 +241,37 @@ SEM Pattern
 -------------------------------------------------------------------------------
 
 ATTR  CRuleTree [ | | execPlan : {Expr} ]
+ATTR  CRuleTrees [ | | execPlans : {[Expr]} ]
 
 SEM CRuleTree
-  | CRPar lhs.execPlan = doPar @left.execPlan @right.execPlan
-  | CRSeq lhs.execPlan = doSeq @left.execPlan @right.execPlan
-  | CRSingle lhs.execPlan = foldr1 doSeq (map (TupleExpr . flip (:) [] . SimpleExpr) (concatMap declBinds @r.decls))
-  | CRNone lhs.execPlan = SimpleExpr "()"
+  | CTPar lhs.execPlan = exprIntersperse doPar @xs.execPlans
+  | CTSeq lhs.execPlan = exprIntersperse doSeq @xs.execPlans
+  | CTRule lhs.execPlan = exprIntersperse doSeq (map (TupleExpr . flip (:) [] . SimpleExpr) (concatMap declBinds @r.decls))
+
+SEM CRuleTrees
+  | Cons  lhs.execPlans = @hd.execPlan : @tl.execPlans
+  | Nil   lhs.execPlans = []
 
 {
+
+exprIntersperse :: (Expr -> Expr -> Expr) -> [Expr] -> Expr
+exprIntersperse f xs | null xs = SimpleExpr "()"
+                     | otherwise = foldr1 f xs
+
 doPar a b = App "par" [a,b]
 doSeq a b = App "pseq" [a,b]
 
 declBinds :: Decl -> [String]
 declBinds (Decl left rhs binds uses par) = Set.toList binds
 declBinds (Comment _) = []
-declBinds d = error $ "Unimplemented code... don't know what this Decl binds to: " ++ (show d)
+declBinds d = error $ "Oops... Unimplemented code... don't know what this Decl binds to: " ++ (show d)
 }
 
 -------------------------------------------------------------------------------
 -- Numbering the visits
 -------------------------------------------------------------------------------
 
-ATTR  CVisits CVisit Sequence CRuleTree CRule
+ATTR  CVisits CVisit Sequence CRuleTree CRuleTrees CRule
       CSegments CSegment [ nr : Int | | ]
 SEM  CProduction
   |  CProduction visits.nr = 0
@@ -348,7 +357,7 @@ SEM CRule
 -- Type signatures are added to the declarations. 
 -------------------------------------------------------------------------------
 
-ATTR Sequence CRuleTree CRule [ | | tSigs USE {++} {[]} : {Decls} ]
+ATTR Sequence CRuleTree CRuleTrees CRule [ | | tSigs USE {++} {[]} : {Decls} ]
 SEM  CRule
   |  CRule        loc.mkTp = typeToCodeType (Just @lhs.nt) @loc.orgParams
                   lhs.tSigs = [ TSig (attrname False field attr) tp'
@@ -543,7 +552,7 @@ pickOrigType (nm, tp, virt@(Just (Just x))) = (nm, x, virt)
 pickOrigType x = x
 }
 
-ATTR CVisits CVisit Sequence CRuleTree CRule [ instVisitNrs : {Map Identifier Int} || ]
+ATTR CVisits CVisit Sequence CRuleTree CRuleTrees CRule [ instVisitNrs : {Map Identifier Int} || ]
 ATTR CVisits CVisit [|| gatherInstVisitNrs USE {`Map.union`} {Map.empty} : {Map Identifier Int} ]
 SEM CProduction
   | CProduction
@@ -563,7 +572,7 @@ ATTR CNonterminals CNonterminal
 ATTR CProductions CProduction
   [ aroundMap : {Map ConstructorIdent (Set Identifier)} || ]
 
-ATTR CVisits CVisit Sequence CRuleTree CRule [ aroundMap : {Set Identifier} | | ]
+ATTR CVisits CVisit Sequence CRuleTree CRuleTrees CRule [ aroundMap : {Set Identifier} | | ]
 
 SEM CGrammar | CGrammar          loc.aroundMap = @aroundsMap
 SEM CNonterminal | CNonterminal  loc.aroundMap = Map.findWithDefault Map.empty @nt @lhs.aroundMap
@@ -703,7 +712,7 @@ SEM CSegment
   | CSegment
       lhs.semDomUnfoldGath = Map.singleton (@lhs.nt, @lhs.nr) (@loc.params, @loc.tp)
 
-ATTR CNonterminals CNonterminal CProductions CProduction CVisits CVisit Sequence CRuleTree CRule [ unfoldSemDom : {NontermIdent -> Int -> [String] -> Code.Type} | | ]
+ATTR CNonterminals CNonterminal CProductions CProduction CVisits CVisit Sequence CRuleTree CRuleTrees CRule [ unfoldSemDom : {NontermIdent -> Int -> [String] -> Code.Type} | | ]
 
 SEM CGrammar
   | CGrammar
@@ -823,9 +832,9 @@ SEM CNonterminal
 
 ATTR CInterface CSegments CSegment 
      CProductions CProduction
-     CVisits CVisit Sequence CRuleTree CRule  [ | | comments USE {++} {[]}: {[String]} ]
+     CVisits CVisit Sequence CRuleTree CRuleTrees CRule  [ | | comments USE {++} {[]}: {[String]} ]
 
-ATTR Sequence CRuleTree CRule [ what:String | | ]
+ATTR Sequence CRuleTree CRuleTrees CRule [ what:String | | ]
 
 SEM CSegment
   | CSegment     lhs.comments =  let body = map ind (showsSegment (CSegment @inh @syn))

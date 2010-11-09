@@ -66,10 +66,9 @@ SEM CVisit
   | CVisit          lhs     .   pp      =   ppNestInfo ["CVisit","CVisit"] [] [ppF "inh" $ ppMap @inh, ppF "syn" $ ppMap @syn, ppF "sequence" @vss.pp, ppF "intra" $ ppVList @intra.ppL, ppF "ordered" $ ppBool @ordered] []
 
 SEM CRuleTree
-  | CRPar           lhs     .   pp      =   ppNestInfo ["CRuleTree","CRPar"] [] [ppF "l" @left.pp, ppF "r" @right.pp] [ ]
-  | CRSeq           lhs     .   pp      =   ppNestInfo ["CRuleTree","CRSeq"] [] [ppF "l" @left.pp, ppF "r" @right.pp] [ ]
-  | CRSingle        lhs     .   pp      =   ppNestInfo ["CRuleTree","CRSingle"] [] [@r.pp] [ ]
-  | CRNone          lhs     .   pp      =   ppNestInfo ["CRuleTree","CRNone"] [] [] [ ]
+  | CTPar           lhs     .   pp      =   ppNestInfo ["CRuleTree","CTPar"] [] [ppVList @xs.ppL] [ ]
+  | CTSeq           lhs     .   pp      =   ppNestInfo ["CRuleTree","CTSeq"] [] [ppVList @xs.ppL] [ ]
+  | CTRule          lhs     .   pp      =   ppNestInfo ["CRuleTree","CTRule"] [] [@r.pp] [ ]
 
 
 SEM CRule
@@ -83,7 +82,7 @@ SEM Pattern
   | Underscore		lhs     .  	pp    	=   ppNestInfo ["Pattern","Underscore"] [ppShow @pos] [] []
 
 
-ATTR CNonterminals CSegments CProductions CVisits Sequence Patterns [ | | ppL: {[PP_Doc]} ]
+ATTR CNonterminals CSegments CProductions CVisits Sequence Patterns CRuleTrees [ | | ppL: {[PP_Doc]} ]
 
 SEM Patterns
   | Cons			lhs		.	ppL		=	@hd.pp : @tl.ppL
@@ -106,5 +105,9 @@ SEM CSegments
   | Nil				lhs		.	ppL		=	[]
   
 SEM CNonterminals
+  | Cons			lhs		.	ppL		=	@hd.pp : @tl.ppL
+  | Nil				lhs		.	ppL		=	[]
+
+SEM CRuleTrees
   | Cons			lhs		.	ppL		=	@hd.pp : @tl.ppL
   | Nil				lhs		.	ppL		=	[]
