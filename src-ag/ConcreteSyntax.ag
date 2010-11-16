@@ -79,6 +79,7 @@ DATA SemAlt    | SemAlt pos    : {Pos}
 
 DATA SemDef    | Def    pos    : Pos
                         mbName : {Maybe Identifier}
+                        heavy  : {Bool}
                         pattern: Pattern
                         rhs    : {Expression}
                         owrt   : {Bool}

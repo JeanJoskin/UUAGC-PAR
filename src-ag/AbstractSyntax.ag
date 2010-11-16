@@ -56,6 +56,7 @@ DATA Rule         | Rule    mbName  : {Maybe Identifier}
                             owrt    : {Bool}
                             origin  : String  -- just for documentation (and maybe errors)
                             explicit : Bool  -- True if this rule defined in the source code
+                            heavy   : Bool
 
 DATA TypeSig      | TypeSig name : {Identifier}
                             tp   : {Type}

@@ -26,13 +26,12 @@ import Data.Map(Map)
 import qualified Data.Set as Set
 import Data.Set(Set)
 import Data.Tree(Tree(Node))
-import Data.Graph(Graph, dfs, edges, vertices, buildG, transposeG, Forest (..), Bounds)
+import Data.Graph(Graph, dfs, edges, vertices, buildG, transposeG, Forest (..), Bounds, topSort)
 import Data.Maybe (fromJust,mapMaybe)
 import Data.List (partition,transpose,(\\),nub,intersect, findIndex,sortBy,find)
 import Data.Array ((!),inRange,bounds,assocs)
 import Data.Foldable(toList)
 import qualified Data.Graph.Inductive as Fgl
-import Data.Graph.Inductive.Query.DFS (topsort',topsort)
 import qualified Data.IntMap as IntMap
 
 import Debug.Trace(trace)
@@ -257,6 +256,8 @@ is empty.
 ATTR Interfaces Interface Segments Segment [ | | taskTrees USE {++} {[]} : {[(Int,TaskTree Vertex)]} ]
 
 ATTR Interfaces Interface Segments Segment [ | | vertexToVisit USE {++} {[]} : {[(Vertex,Int)]} ]
+ATTR Interfaces Interface Segments Segment [ | | taskTreeToVisit USE {++} {[]} : {[(Int,Int)]} ]
+
 
 SEM  Segment
   |  Segment  loc.synOccur = gather @lhs.info (@occurAs isLhs @syn)
@@ -273,13 +274,85 @@ SEM  Segment
               lhs.vertexToVisit = let isThisVisit (ChildVisit _ nt n _ _) = nt == @lhs.nt && n == @lhs.n
                                       assocs = filter (isThisVisit . snd) (Map.assocs @lhs.visitDescr)
                                   in  zip (map fst assocs) (repeat @lhs.vn)
+              lhs.taskTreeToVisit = zip [@lhs.ttx..] (replicate (length @lhs.cons) @lhs.vn) 
               lhs.taskTrees = zip [@lhs.ttx..] @tts
 
 ATTR Interfaces Interface Segments Segment [ topPars : {[ParProfit]} | | ]
 
 SEM IRoot
-  | IRoot inters.topPars = let weightMap = Map.empty
-                           in  foldr (mergeParProfits . uncurry (parProfits weightMap)) [] @inters.taskTrees
+  | IRoot inters.topPars = let tasks = concatMap (flatten . snd) @inters.taskTrees
+                               weightMap = mkWeightMap (ruleTable @lhs.info) vertexToVisit vwn tasks
+                               taskTreeToVisit = Map.fromList @inters.taskTreeToVisit
+                               vertexToVisit = Map.fromList @inters.vertexToVisit
+                               taskTrees = Map.fromList @inters.taskTrees
+                               vw1 = visitWeights1 (ruleTable @lhs.info) taskTrees taskTreeToVisit
+                               vwn = (iterate (addVisitWeights visitGraph) vw1) !! 2
+                               visitGraph = visitGr vertexToVisit taskTreeToVisit @inters.vn @inters.taskTrees
+                               topPars = foldr (mergeParProfits . uncurry (parProfits weightMap)) [] @inters.taskTrees
+                           in  trace (show vwn) topPars
+
+{
+mkWeightMap :: Table CRule -> Map Vertex Int -> Map Int Int -> [Vertex] -> Map Vertex Int
+mkWeightMap ruleTable vertexToVisit visitW ts =
+    let weight t  | Map.member t vertexToVisit = (t,visitW Map.! (vertexToVisit Map.! t))
+                  | otherwise                  = (t,defTaskWeight ruleTable t)
+    in  Map.fromList (map weight ts)
+
+visitGr :: Map Vertex Int -> Map Int Int -> Int -> [(Int,TaskTree Vertex)] -> Graph
+visitGr vertexToVisit taskTreeToVisit nv tts =
+    let ttDeps tt = zip (repeat (taskTreeToVisit Map.! fst tt))
+                         (mapMaybe (flip Map.lookup vertexToVisit) (flatten (snd tt)))
+        ttsDeps = nub $ concatMap ttDeps tts
+    in  buildG (0,nv - 1) ttsDeps
+
+addVisitWeights :: Graph -> Map Int Int -> Map Int Int
+addVisitWeights g m = let ws = map (\v -> (m Map.! v, v)) (vertices g)
+                      in  foldr (uncurry $ addVisitWeight g []) m ws
+
+addVisitWeight :: Graph -> [Int] -> Int -> Int -> Map Int Int -> Map Int Int
+addVisitWeight g xcl w v m | elem v xcl = m
+                           | otherwise  = let m' = Map.alter (\(Just x) -> Just $ x + w) v m
+                                          in  foldr (addVisitWeight g (v:xcl) w) m' (g ! v)
+
+countEdges :: [(Int,Int)] -> [(Int,Int,Int)]
+countEdges [] = []
+countEdges ((a,b):xs) = (a,b,length p) : countEdges q
+  where
+    (p,q) = partition ((==) (a,b)) xs
+
+visitWeights1 :: Table CRule -> Map Int (TaskTree Vertex) -> Map Int Int -> Map Int Int
+visitWeights1 ruleTable tts taskTreeToVisit =
+  let visitToTaskTrees = revMap taskTreeToVisit
+      visits = Map.keys visitToTaskTrees
+      insWeight v = Map.insert v (visitWeight1 ruleTable tts visitToTaskTrees v)
+  in  foldr insWeight Map.empty visits 
+
+visitWeight1 :: Table CRule -> Map Int (TaskTree Vertex) -> Map Int [Int] -> Int -> Int
+visitWeight1 ruleTable tts visitToTaskTrees v =
+    let tts' = map ((Map.!) tts) (visitToTaskTrees Map.! v)
+    in  mean $ map (taskWeight1 ruleTable) tts'
+
+revMap :: (Ord b) => Map a b -> Map b [a]
+revMap m = foldr (\(a,b) -> Map.alter (ins a) b) Map.empty (Map.assocs m)
+  where
+    ins x (Just xs) = Just (x:xs)
+    ins x Nothing   = Just [x]
+
+mean :: [Int] -> Int
+mean xs = sum xs `div` length xs
+
+taskWeight1 :: Table CRule -> TaskTree Vertex -> Int
+taskWeight1 ruleTable tt =
+    let tasks = flatten tt
+    in  sum $ map (defTaskWeight ruleTable) tasks
+
+defTaskWeight :: Table CRule -> Vertex -> Int
+defTaskWeight ruleTable task
+    | inRange (bounds ruleTable) task = if getHeavy (ruleTable ! task) then 10 else 0
+    | otherwise                       = 0
+
+
+}
 
 ATTR Interfaces Interface [  | | conss USE {++} {[]} : {[(NontermIdent,[ConstructorIdent])]} ]
 
@@ -526,11 +599,11 @@ prettyVisit info visitDescr v = (show v) ++ ": " ++ case Map.lookup v visitDescr
                                   Just (ChildVisit name nt n _ _) -> (getName name) ++ "." ++ (getName nt) ++ " (" ++ (show n) ++ ")"
 
 ruleConsumes :: CRule -> AtrrRefs
-ruleConsumes (CRule _ _ _ _ _ _ _ _ _ _ _ _ _ uses _ _) = uses
+ruleConsumes (CRule _ _ _ _ _ _ _ _ _ _ _ _ _ uses _ _ _) = uses
 ruleConsumes (CChildVisit child _ _ inh _ _ _) = foldr (\a -> Set.insert (child,a)) Set.empty . Map.keys $ inh
 
 ruleProduces :: CRule -> AtrrRefs
-ruleProduces (CRule _ _ _ _ _ _ _ _ _ _ defines _ _ _ _ _) = foldr (\(c,a,t) -> Set.insert (c,a)) Set.empty . Map.elems $ defines
+ruleProduces (CRule _ _ _ _ _ _ _ _ _ _ defines _ _ _ _ _ _) = foldr (\(c,a,t) -> Set.insert (c,a)) Set.empty . Map.elems $ defines
 ruleProduces (CChildVisit child _ _ _ syn _ _) = foldr (\a -> Set.insert (child,a)) Set.empty . Map.keys $ syn
 
 countChildVisits :: [CRule] -> Int

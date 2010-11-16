@@ -213,23 +213,28 @@ parseFile opts searchPath file
 
     pSemDef :: AGParser [SemDef]
     pSemDef
-          =   (\x y fs -> map (\f -> f x y) fs) <$> pMaybeRuleName <*> pFieldIdentifier <*> pList1 pAttrDef
+          =   (\x y z fs -> map (\f -> f x y z) fs) <$> pHeavyOpt <*> pMaybeRuleName <*> pFieldIdentifier <*> pList1 pAttrDef
           <|>                            pLOC              *> pList1 pLocDecl
           <|>                            pINST             *> pList1 pInstDecl
           <|>  pSEMPRAGMA *> pList1 (SemPragma <$> pNames)
           <|> (\n e -> [AugmentDef n e]) <$ pAugmentToken <*> pIdentifier <* pAssign <*> pExpr
           <|> (\n e -> [AroundDef n e]) <$ pAROUND <*> pIdentifier <* pAssign <*> pExpr
           <|> (\a b -> [AttrOrderBefore a [b]]) <$> pList1 pAttrOrIdent <* pSmaller <*> pAttrOrIdent
-          <|> (\mbNm pat (owrt,pos) exp -> [Def pos mbNm (pat ()) exp owrt]) <$> pMaybeRuleName <*> pPattern (const <$> pAttr) <*> pAssignPos <*> pExpr
+          <|> (\mbNm pat (owrt,pos) exp -> [Def pos mbNm False (pat ()) exp owrt]) <$> pMaybeRuleName <*> pPattern (const <$> pAttr) <*> pAssignPos <*> pExpr
 
     pMaybeRuleName :: AGParser (Maybe Identifier)
     pMaybeRuleName
       =   (Just <$> pIdentifier <* pColon <?> "rule name")
       <|> pSucceed Nothing
 
-    pAttrDef :: AGParser (Maybe Identifier -> Identifier -> SemDef)
+    pHeavyOpt :: AGParser Bool
+    pHeavyOpt
+      =  (const True <$> pHEAVY <?> "HEAVY")
+      <|> pSucceed False
+
+    pAttrDef :: AGParser (Bool -> Maybe Identifier -> Identifier -> SemDef)
     pAttrDef
-      = (\pat (owrt,pos) exp mbNm fld -> Def pos mbNm (pat fld) exp owrt)
+      = (\pat (owrt,pos) exp heavy mbNm fld -> Def pos mbNm heavy (pat fld) exp owrt)
                <$ pDot <*> pattern <*> pAssignPos <*> pExpr
       where pattern =  pPattern pVar
                    <|> (\ir a fld -> ir $ Alias fld a (Underscore noPos) []) <$> ((Irrefutable <$ pTilde) `opt` id) <*> pIdentifier
@@ -452,6 +457,7 @@ pTYPE        = pCostReserved 90 "TYPE"    <?> "TYPE"
 pINH         = pCostReserved 90 "INH"     <?> "INH"
 pSYN         = pCostReserved 90 "SYN"     <?> "SYN"
 pCHN         = pCostReserved 90 "CHN"     <?> "CHN"
+pHEAVY       = pCostReserved 90 "HEAVY"   <?> "HEAVY"
 pMAYBE       = pCostReserved 5  "MAYBE"   <?> "MAYBE"
 pEITHER      = pCostReserved 5  "EITHER"  <?> "EITHER"
 pMAP         = pCostReserved 5  "MAP"     <?> "MAP"

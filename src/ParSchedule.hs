@@ -28,14 +28,14 @@ data TaskTree a = TPar Int [TaskTree a]
                 | TTask Int a
                 deriving (Show)
 
-profitTreshold = 1
-profitUse = 1
+profitTreshold = 5
+profitUse = 2
 
 emptyTaskTree :: TaskTree a
 emptyTaskTree = TSeq 0 []
 
 seqTaskTree :: Gr Node () -> [Node] -> TaskTree Node
-seqTaskTree gr es = let sq = topsort' . grev . remUnreach es $ gr
+seqTaskTree gr es = let sq = topsort' . remUnreach es $ gr
                     in  sequentialTasks sq
 
 taskTree :: Array Node CRule -> Map Node ChildVisit -> Bool -> Gr Node () -> [Node] -> TaskTree Node

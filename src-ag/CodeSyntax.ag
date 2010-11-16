@@ -80,6 +80,7 @@ DATA  CRule
                    uses       :  {Set (Identifier, Identifier)}
                    explicit   :  Bool   -- True if this an explicit rule found in the source file
                    mbNamed    : {Maybe Identifier}
+                   heavy      : Bool
    |  CChildVisit  name    :  Identifier  -- corresponding to the name of the child
                    nt      :  NontermIdent
                    nr      :  Int   -- visit number
