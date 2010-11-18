@@ -241,12 +241,16 @@ SEM Pattern
 -------------------------------------------------------------------------------
 
 ATTR  CRuleTree [ | | execPlan : {Expr} ]
-ATTR  CRuleTrees [ | | execPlans : {[Expr]} ]
+ATTR  CRule CRuleTrees [ | | execPlans : {[Expr]} ]
+
+SEM CRule
+  | CRule lhs.execPlans = [simpleExpr (attrname False fld nm) | (fld,nm,_) <- Map.elems @defines]
+  | CChildVisit lhs.execPlans = map (simpleExpr . attrname True @name) (Map.keys @syn)
 
 SEM CRuleTree
   | CTPar lhs.execPlan = exprIntersperse doPar @xs.execPlans
   | CTSeq lhs.execPlan = exprIntersperse doSeq @xs.execPlans
-  | CTRule lhs.execPlan = exprIntersperse doSeq (map (TupleExpr . flip (:) [] . SimpleExpr) (concatMap declBinds @r.decls))
+  | CTRule lhs.execPlan = exprIntersperse doSeq @r.execPlans
 
 SEM CRuleTrees
   | Cons  lhs.execPlans = @hd.execPlan : @tl.execPlans
@@ -258,13 +262,11 @@ exprIntersperse :: (Expr -> Expr -> Expr) -> [Expr] -> Expr
 exprIntersperse f xs | null xs = SimpleExpr "()"
                      | otherwise = foldr1 f xs
 
+simpleExpr :: String -> Expr
+simpleExpr = TupleExpr . flip (:) [] . SimpleExpr
+
 doPar a b = App "par" [a,b]
 doSeq a b = App "pseq" [a,b]
-
-declBinds :: Decl -> [String]
-declBinds (Decl left rhs binds uses par) = Set.toList binds
-declBinds (Comment _) = []
-declBinds d = error $ "Oops... Unimplemented code... don't know what this Decl binds to: " ++ (show d)
 }
 
 -------------------------------------------------------------------------------

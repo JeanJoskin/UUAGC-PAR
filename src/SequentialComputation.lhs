@@ -18,11 +18,16 @@ import Data.Array(Array,(!),bounds,elems,assocs,indices)
 import Data.Array.ST(STArray, newArray, readArray, writeArray, freeze, thaw)
 import Data.Maybe(listToMaybe,mapMaybe,isJust,fromJust)
 import Data.List(partition,nub,(\\),delete,minimumBy,intersect)
+import Data.Set (Set)
 import qualified Data.Set as Set
+import Data.Map (Map)
 import qualified Data.Map as Map
 import Options
 import ParseProfile
 import qualified Data.IntMap as IntMap
+
+import Data.Graph (edges,vertices)
+import System.IO.Unsafe
 
 \end{code}
 
@@ -216,11 +221,11 @@ See modules Interfaces and InterfacesRules for more information.
 \begin{code}
 makeInterfaces :: Info -> [Vertex] -> Graph -> T_IRoot
 makeInterfaces info sep tds
-  =  let interslist = reverse . makeInterface sep tds []
+  =  let interslist = reverse . makeInterface' sep tds []
          mkSegments = foldr (sem_Segments_Cons . uncurry sem_Segment_Segment) sem_Segments_Nil . interslist
          mkInter ((nt,cons),lmh) = sem_Interface_Interface nt cons (mkSegments lmh)
          inters = foldr (sem_Interfaces_Cons . mkInter) sem_Interfaces_Nil (zip (nonts info) (lmh info))
-     in sem_IRoot_IRoot inters
+     in trace ("Sep: " ++ show sep) $ vizG' "tds" (showAttr (attrTable info)) tds `seq` sem_IRoot_IRoot inters
 
 \end{code}
 
@@ -241,23 +246,50 @@ sinks alternatively. If there are no synthesized attributes at all,
 generate an interface with one visit computing nothing.
 
 \begin{code}
+
+makeInterface' :: [Vertex] -> Graph -> [Vertex] -> LMH -> [([Vertex],[Vertex])]
+makeInterface' sep tds del lmh = let r = makeInterface sep tds del lmh
+                                 in  trace (show r) r
+
 makeInterface :: [Vertex] -> Graph -> [Vertex] -> LMH -> [([Vertex],[Vertex])]
 makeInterface sep tds del (l,m,h)
   | m > h = [([],[])]
-  | otherwise = let  sepSyn = intersect ([m..h] \\ del) sep
-                     sepSynSink = filter (isSink tds del) sepSyn
-                     syn | null sepSynSink = filter (isSink tds del) ([m..h] \\ del)
-                         | otherwise       = sepSynSink
+  | otherwise = let  synSink = filter (isSink tds del) ([m..h] \\ del)
+                     synNoSep = synSink \\ sep
+                     sepVisit = null synNoSep && not (null synSink)
+                     syn | sepVisit = synSink
+                         | otherwise = synNoSep
                      del' = del ++ syn
-                     sepInh = intersect ([l..(m-1)] \\ del') sep
-                     sepInhSink = filter (isSink tds del') sepInh
-                     inh | null sepInhSink = filter (isSink tds del') ([l..(m-1)] \\ del')
-                         | otherwise       = sepInhSink
+                     inhSink = filter (isSink tds del') ([l..(m-1)] \\ del')
+                     inh | sepVisit = intersect inhSink sep
+                         | otherwise = inhSink \\ sep
                      del'' = del' ++ inh
                      rest = makeInterface sep tds del'' (l,m,h)
                 in if  null inh && null syn
                        then []
                        else (inh,syn) : rest
+
+vizG :: String -> (Vertex -> String) -> Graph -> IO ()
+vizG nm lbl g = writeFile (nm ++ ".dot") (vizGraph lbl g)
+
+vizG' :: String -> (Vertex -> String) -> Graph -> Graph
+vizG' nm lbl g = unsafePerformIO (vizG nm lbl g) `seq` g
+
+showAttr :: Table NTAttr -> Int -> String
+showAttr attrTable i = show (attrTable ! i) ++ " / " ++ show i
+
+vizGraph :: (Vertex -> String) -> Graph -> String
+vizGraph lbl g = "digraph G {\n" ++
+                 vizGLabels lbl g ++
+                 vizGEdges g ++
+                 "}"
+
+vizGEdges :: Graph -> String
+vizGEdges = concatMap (\(a,b) -> show a ++ " -> " ++ show b ++ "\n") . edges
+
+vizGLabels :: (Vertex -> String) -> Graph -> String
+vizGLabels f g = concatMap (\v -> show v ++ " [label =\"" ++ f v ++ "\"]\n") (vertices g)
+
 \end{code}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -304,7 +336,7 @@ findInstCycles instToSynEdges tdp
 \begin{code}
 generateVisits :: Info -> Options -> Maybe Profile -> MGraph -> MGraph -> [Edge] -> (CInterfaceMap, CVisitsMap, [Edge])
 generateVisits info opt prof tds tdp dpr
-  = let  sep = []
+  = let  sep = threadedAttrs Map.empty (assocs (attrTable info))
          inters = makeInterfaces info sep (fmap Map.keys tds)
          inhs = Inh_IRoot{ info_Inh_IRoot = info
                          , options_Inh_IRoot = opt
@@ -314,6 +346,13 @@ generateVisits info opt prof tds tdp dpr
                          }
          iroot = wrap_IRoot inters inhs
     in (inters_Syn_IRoot iroot, visits_Syn_IRoot iroot, edp_Syn_IRoot iroot)
+
+threadedAttrs :: Map (NontermIdent,Identifier) Int -> [(Int,NTAttr)] -> [Int]
+threadedAttrs d [] = []
+threadedAttrs d ((v,a):as) = let ni = getNtaNameIdent a
+                             in  if Map.member ni d
+                                 then (d Map.! ni) : v : threadedAttrs d as
+                                 else threadedAttrs (Map.insert ni v d) as
 
 reportLocalCycle :: MGraph -> [EdgePath] -> [[Vertex]]
 reportLocalCycle tds cyc

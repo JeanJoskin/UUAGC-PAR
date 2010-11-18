@@ -38,6 +38,9 @@ data NTAttr = NTAInh NontermIdent Identifier Type -- nt, attribute, type
 getNtaNameType (NTAInh nt name tp) = (name,tp)
 getNtaNameType (NTASyn nt name tp) = (name,tp)
 
+getNtaNameIdent (NTAInh nt name tp) = (nt,name)
+getNtaNameIdent (NTASyn nt name tp) = (nt,name)
+
 getAttr     (CRule name ii hc nt con field childnt tp pattern rhs defines owrt origin uses expl _ _) = name
 getIsIn     (CRule name ii hc nt con field childnt tp pattern rhs defines owrt origin uses expl _ _) = ii
 getHasCode  (CRule name ii hc nt con field childnt tp pattern rhs defines owrt origin uses expl _ _) = hc

@@ -28,11 +28,15 @@ import Data.Set(Set)
 import Data.Tree(Tree(Node))
 import Data.Graph(Graph, dfs, edges, vertices, buildG, transposeG, Forest (..), Bounds, topSort)
 import Data.Maybe (fromJust,mapMaybe)
-import Data.List (partition,transpose,(\\),nub,intersect, findIndex,sortBy,find)
-import Data.Array ((!),inRange,bounds,assocs)
+import Data.List (partition,transpose,(\\),nub,intersect, findIndex,sortBy,find,union)
+import Data.Array ((!),inRange,bounds,assocs,indices)
 import Data.Foldable(toList)
 import qualified Data.Graph.Inductive as Fgl
 import qualified Data.IntMap as IntMap
+
+import Control.Monad (forM_,when)
+import Control.Monad.ST
+import Data.Array.ST
 
 import Debug.Trace(trace)
 import System.IO.Unsafe
@@ -154,16 +158,18 @@ ATTR  Interfaces Interface Segments Segment
       [ | |  newedges USE {Seq.><} {Seq.empty} : {Seq Edge } 
              descr USE {Seq.><} {Seq.empty} : {Seq (Vertex,ChildVisit)} ]
 SEM  Segment
-  |  Segment lhs.descr =  Seq.fromList $ zipWith (cv @look @lhs.n) @newvertices @groups {-$-}
+  |  Segment lhs.descr = Seq.fromList $ zipWith (cv @look @lhs.n) @newvertices @groups {-$-}
 
 {
 -- Only non-empty syn will ever be forced, because visits with empty syn are never performed
 -- Right hand side synthesized attributes always have a field
 cv :: (Vertex -> CRule) -> Int -> Vertex -> ([Vertex],[Vertex]) -> (Vertex,ChildVisit)
-cv look n v (inh,syn) =  let  fld = getField (look (head syn))
-                              rnt = fromJust (getRhsNt (look (head syn)))
+cv look n v (inh,syn) =  let  a | null syn = head inh
+                                | otherwise = head syn
+                              fld = getField (look a)
+                              rnt = fromJust (getRhsNt (look a))
                               d = ChildVisit fld rnt n inh syn
-                         in (v,d)
+                         in   (v,d)
 }
 \end{Code}
 
@@ -238,11 +244,9 @@ SEM  Segments
 To compute the visit subsequences, we pass the visit-subsequence graph down
 
 \begin{Code}
-ATTR Interfaces Interface Segments Segment [ vssGraph : {Fgl.Gr Vertex ()} | | ]
+ATTR Interfaces Interface Segments Segment [ vssGraph : {Graph} | | ]
 SEM  IRoot
-  |  IRoot inters.vssGraph = let labelNode n     = (n,n)
-                                 labelEdge (a,b) = (a,b,())
-                             in  Fgl.mkGraph (map labelNode (vertices @visitssGraph)) (map labelEdge (edges @visitssGraph)) 
+  |  IRoot inters.vssGraph = @visitssGraph
 \end{Code}
 
 Each segment computes subsequences for each production of the
@@ -261,14 +265,15 @@ ATTR Interfaces Interface Segments Segment [ | | taskTreeToVisit USE {++} {[]} :
 
 SEM  Segment
   |  Segment  loc.synOccur = gather @lhs.info (@occurAs isLhs @syn)
-              loc.tts = let hasCode v | inRange (bounds (ruleTable @lhs.info)) v = getHasCode (ruleTable @lhs.info ! v)
-                                      | otherwise = True 
-                            vssGraph' = filterNodesD hasCode . Fgl.delNodes @lhs.prev $ @lhs.vssGraph
-                        in if null @syn
-                           then replicate (length @lhs.cons) emptyTaskTree
-                           else if @lhs.o_datPar
-                                then map (taskTree (ruleTable @lhs.info) @lhs.visitDescr @lhs.o_dumpSchedGraphs vssGraph') @synOccur
-                                else map (seqTaskTree vssGraph') @synOccur
+              HEAVY loc.tts = let hasCode v | inRange (bounds (ruleTable @lhs.info)) v = getHasCode (ruleTable @lhs.info ! v)
+                                            | otherwise = True 
+                                  vssGraph' = delVertices @lhs.prev $ @lhs.vssGraph
+                                  lbl = vertexLabel (ruleTable @lhs.info) @lhs.visitDescr
+                                  genF | @lhs.o_datPar = taskTree
+                                       | otherwise     = seqTaskTree 
+                              in if null @syn
+                                 then replicate (length @lhs.cons) emptyTaskTree
+                                 else map (filterTaskTree' hasCode . genF @lhs.o_dumpSchedGraphs lbl vssGraph') @synOccur
               loc.vss = map flatten @tts
               loc.visitss = map (uncurry $ decimate @lhs.topPars) (zip [@lhs.ttx..] @tts)
               lhs.vertexToVisit = let isThisVisit (ChildVisit _ nt n _ _) = nt == @lhs.nt && n == @lhs.n
@@ -289,9 +294,32 @@ SEM IRoot
                                vwn = (iterate (addVisitWeights visitGraph) vw1) !! 2
                                visitGraph = visitGr vertexToVisit taskTreeToVisit @inters.vn @inters.taskTrees
                                topPars = foldr (mergeParProfits . uncurry (parProfits weightMap)) [] @inters.taskTrees
-                           in  trace (show vwn) topPars
+                           in  topPars
 
 {
+delVertices :: [Vertex] -> Graph -> Graph
+delVertices vs g = runSTArray $ do g' <- thaw g
+                                   forM_ vs $ \v ->
+                                     writeArray g' v []
+                                   forM_ (indices g) $ \v -> do
+                                     xs <- readArray g' v
+                                     writeArray g' v (xs \\ vs)
+                                   return g'
+
+filterVerticesD :: (Int -> Bool) -> Graph -> Graph
+filterVerticesD f g = delVerticesD (filter (not . f) (vertices g)) g
+
+delVerticesD :: [Vertex] -> Graph -> Graph
+delVerticesD vs g = runSTArray $ do g' <- thaw g
+                                    forM_ vs $ \v -> do
+                                      o <- readArray g' v
+                                      writeArray g' v []
+                                      forM_ (vertices g) $ \w -> do
+                                        xs <- readArray g' w
+                                        when (elem v xs) $
+                                          writeArray g' w (union (xs \\ [v]) o)
+                                    return g'
+
 mkWeightMap :: Table CRule -> Map Vertex Int -> Map Int Int -> [Vertex] -> Map Vertex Int
 mkWeightMap ruleTable vertexToVisit visitW ts =
     let weight t  | Map.member t vertexToVisit = (t,visitW Map.! (vertexToVisit Map.! t))
@@ -313,12 +341,6 @@ addVisitWeight :: Graph -> [Int] -> Int -> Int -> Map Int Int -> Map Int Int
 addVisitWeight g xcl w v m | elem v xcl = m
                            | otherwise  = let m' = Map.alter (\(Just x) -> Just $ x + w) v m
                                           in  foldr (addVisitWeight g (v:xcl) w) m' (g ! v)
-
-countEdges :: [(Int,Int)] -> [(Int,Int,Int)]
-countEdges [] = []
-countEdges ((a,b):xs) = (a,b,length p) : countEdges q
-  where
-    (p,q) = partition ((==) (a,b)) xs
 
 visitWeights1 :: Table CRule -> Map Int (TaskTree Vertex) -> Map Int Int -> Map Int Int
 visitWeights1 ruleTable tts taskTreeToVisit =
@@ -351,6 +373,16 @@ defTaskWeight ruleTable task
     | inRange (bounds ruleTable) task = if getHeavy (ruleTable ! task) then 10 else 0
     | otherwise                       = 0
 
+shortChildVisit :: ChildVisit -> String
+shortChildVisit (ChildVisit fld rhsNt nr inhs syns) = (getName rhsNt) ++ "." ++ (getName fld) ++ " #" ++ (show nr)
+
+shortCRule :: CRule -> String
+shortCRule r = (show $ getLhsNt r) ++ "." ++ (show $ getCon r)++ "." ++ (show $ getField r) ++ "." ++ (show $ getAttr r)
+
+vertexLabel :: Table CRule -> Map Vertex ChildVisit -> Vertex -> String
+vertexLabel tbl vd v | inRange (bounds tbl) v = shortCRule (tbl ! v) ++ " (" ++ (show v) ++ ")"
+                     | Map.member v vd        = shortChildVisit (vd Map.! v) ++ " (" ++ (show v) ++ ")" 
+                     | otherwise              = (show v)
 
 }
 
