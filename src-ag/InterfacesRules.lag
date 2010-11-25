@@ -18,6 +18,7 @@ import GrammarInfo
 import ParSchedule
 import Options
 import ParseProfile
+import TaskTree
 
 import qualified Data.Sequence as Seq
 import Data.Sequence(Seq)
@@ -263,19 +264,21 @@ ATTR Interfaces Interface Segments Segment [ | | taskTreeToVisit USE {++} {[]} :
 
 SEM  Segment
   |  Segment  loc.synOccur = gather @lhs.info (@occurAs isLhs @syn)
+              loc.lbl = vertexLabel (ruleTable @lhs.info) @lhs.visitDescr
+              loc.dumpPrefix = let nm c = '_':getName @lhs.nt ++ '.':getName c ++ '-':show @lhs.n
+                               in  if @lhs.o_dumpSchedGraphs
+                                   then map (Just . nm) @lhs.cons
+                                   else replicate (length @lhs.cons) Nothing
                     loc.tts = let hasCode v | inRange (bounds (ruleTable @lhs.info)) v = getHasCode (ruleTable @lhs.info ! v)
                                             | otherwise = True 
                                   vssGraph' = delVertices @lhs.prev $ @lhs.vssGraph
-                                  lbl = vertexLabel (ruleTable @lhs.info) @lhs.visitDescr
-                                  prettyName c = '_':getName @lhs.nt ++ '.':getName c ++ '-':show @lhs.n
-                                  synOccurAndName = zip (map prettyName @lhs.cons) @synOccur
                                   genF | @lhs.o_datPar = taskTree
                                        | otherwise     = seqTaskTree 
                               in if null @syn
                                  then replicate (length @lhs.cons) emptyTaskTree
-                                 else map (filterTaskTree' hasCode . uncurry (genF @lhs.o_dumpSchedGraphs lbl vssGraph')) synOccurAndName
+                                 else map (filterTaskTree' hasCode) $ zipWith (genF vssGraph' @lbl) @dumpPrefix @synOccur
               loc.vss = map flatten @tts
-              loc.visitss = map (uncurry $ decimate @lhs.topPars) (zip [@lhs.ttx..] @tts)
+              loc.visitss = zipWith3 (decimate @lbl @lhs.topPars) @loc.dumpPrefix [@lhs.ttx..] @tts
               lhs.vertexToVisit = let isThisVisit (ChildVisit _ nt n _ _) = nt == @lhs.nt && n == @lhs.n
                                       assocs = filter (isThisVisit . snd) (Map.assocs @lhs.visitDescr)
                                   in  zip (map fst assocs) (repeat @lhs.vn)
