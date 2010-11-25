@@ -161,13 +161,11 @@ SEM  Segment
   |  Segment lhs.descr = Seq.fromList $ zipWith (cv @look @lhs.n) @newvertices @groups {-$-}
 
 {
--- Only non-empty syn will ever be forced, because visits with empty syn are never performed
--- Right hand side synthesized attributes always have a field
 cv :: (Vertex -> CRule) -> Int -> Vertex -> ([Vertex],[Vertex]) -> (Vertex,ChildVisit)
-cv look n v (inh,syn) =  let  a | null syn = head inh
-                                | otherwise = head syn
-                              fld = getField (look a)
-                              rnt = fromJust (getRhsNt (look a))
+cv look n v (inh,syn) =  let  a | null syn = look (head inh)
+                                | otherwise = look (head syn)
+                              fld = getField a
+                              rnt = fromJust (getRhsNt a)
                               d = ChildVisit fld rnt n inh syn
                          in   (v,d)
 }
@@ -265,15 +263,17 @@ ATTR Interfaces Interface Segments Segment [ | | taskTreeToVisit USE {++} {[]} :
 
 SEM  Segment
   |  Segment  loc.synOccur = gather @lhs.info (@occurAs isLhs @syn)
-              HEAVY loc.tts = let hasCode v | inRange (bounds (ruleTable @lhs.info)) v = getHasCode (ruleTable @lhs.info ! v)
+                    loc.tts = let hasCode v | inRange (bounds (ruleTable @lhs.info)) v = getHasCode (ruleTable @lhs.info ! v)
                                             | otherwise = True 
                                   vssGraph' = delVertices @lhs.prev $ @lhs.vssGraph
                                   lbl = vertexLabel (ruleTable @lhs.info) @lhs.visitDescr
+                                  prettyName c = '_':getName @lhs.nt ++ '.':getName c ++ '-':show @lhs.n
+                                  synOccurAndName = zip (map prettyName @lhs.cons) @synOccur
                                   genF | @lhs.o_datPar = taskTree
                                        | otherwise     = seqTaskTree 
                               in if null @syn
                                  then replicate (length @lhs.cons) emptyTaskTree
-                                 else map (filterTaskTree' hasCode . genF @lhs.o_dumpSchedGraphs lbl vssGraph') @synOccur
+                                 else map (filterTaskTree' hasCode . uncurry (genF @lhs.o_dumpSchedGraphs lbl vssGraph')) synOccurAndName
               loc.vss = map flatten @tts
               loc.visitss = map (uncurry $ decimate @lhs.topPars) (zip [@lhs.ttx..] @tts)
               lhs.vertexToVisit = let isThisVisit (ChildVisit _ nt n _ _) = nt == @lhs.nt && n == @lhs.n
@@ -687,15 +687,14 @@ interfaces generate.
 \begin{Code}
 ATTR Interfaces Interface Segments Segment [ | | edp USE {Seq.><} {Seq.empty} : {Seq Edge} ]
 SEM  Segment
-  |  Segment lhs.edp =  Seq.fromList [(i,s) | i <- @inh, s <- @syn]
-                        Seq.>< Seq.fromList [(s,i) | s <- @syn, i <- @lhs.nextInh ]
+  |  Segment lhs.edp = Seq.fromList [(a,a') | a <- (@inh ++ @syn), a' <- @lhs.nextAttr]
 SEM  IRoot [ | | edp : {[Edge]} ]
   |  IRoot  lhs.edp = toList @inters.edp
-SEM  Segment  [ nextInh : {[Vertex]} | | inh : {[Vertex]} ]
-  |  Segment lhs.inh = @inh
-SEM  Segments [ | | firstInh : {[Vertex]} ]
-  |  Cons  hd.nextInh = @tl.firstInh
-           lhs.firstInh = @hd.inh
-  |  Nil  lhs.firstInh = []
+SEM  Segment  [ nextAttr : {[Vertex]} | | attr : {[Vertex]} ]
+  |  Segment lhs.attr = @inh ++ @syn
+SEM  Segments [ | | firstAttr : {[Vertex]} ]
+  |  Cons  hd.nextAttr = @tl.firstAttr
+           lhs.firstAttr = @hd.attr
+  |  Nil  lhs.firstAttr = []
 \end{Code}
 

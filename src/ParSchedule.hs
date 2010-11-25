@@ -34,19 +34,19 @@ profitUse = 2
 emptyTaskTree :: TaskTree a
 emptyTaskTree = TSeq 0 []
 
-seqTaskTree :: Bool -> (Vertex -> String) -> Graph -> [Vertex] -> TaskTree Vertex
-seqTaskTree dump lbl gr es =
-    let dmpTT tt | dump = vizTT' (show es ++ "-tt") lbl tt
+seqTaskTree :: Bool -> (Vertex -> String) -> Graph -> String -> [Vertex] -> TaskTree Vertex
+seqTaskTree dump lbl gr prettyName es =
+    let dmpTT tt | dump = vizTT' (prettyName ++ "-tt") lbl tt
                  | otherwise = tt
-        dmpG g | dump = vizG' (show es ++ "-g") lbl g
+        dmpG g | dump = vizG' (prettyName ++ "-g") lbl g
                | otherwise = g
-    in  dmpTT $ sequentialTasks $ flatten $ taskTree False lbl (dmpG gr) es
+    in  dmpTT $ sequentialTasks $ flatten $ taskTree False lbl (dmpG gr) prettyName es
 
-taskTree :: Bool -> (Vertex -> String) -> Graph -> [Vertex] -> TaskTree Vertex
-taskTree dump lbl gr es =
-     let dmpTT tt | dump = vizTT' (show es ++ "-tt") lbl tt
+taskTree :: Bool -> (Vertex -> String) -> Graph -> String -> [Vertex] -> TaskTree Vertex
+taskTree dump lbl gr prettyName es =
+     let dmpTT tt | dump = vizTT' (prettyName ++ "-tt") lbl tt
                   | otherwise = tt
-         dmpG g   | dump = vizG' (show es ++ "-g") lbl g
+         dmpG g   | dump = vizG' (prettyName ++ "-g") lbl g
                   | otherwise = g
      in  dmpTT . mkTaskTree' es . dmpG $ gr
 

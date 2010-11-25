@@ -42,6 +42,7 @@ import Data.Array((!),bounds,inRange)
 import Data.List(elemIndex,partition,sort,mapAccumL,find,nubBy,intersperse,groupBy,transpose)
 import qualified Data.Tree as Tree
 import Maybe
+import Debug.Trace
 }
 
 {
