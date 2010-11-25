@@ -29,6 +29,7 @@ executable uuagc
     build-depends: base < 3
 
   build-depends: haskell98, uulib>=0.9.12
+  ghc-options: -threaded
   main-is: Ag.hs
   other-modules: Ag
     , CommonTypes
@@ -63,8 +64,6 @@ executable uuagc
     , Order
     , Patterns
     , PrintCode
-    , PrintOcamlCode
-    , PrintVisitCode
     , PrintErrorMessages
     , SemHsTokens
     , Transform
@@ -74,11 +73,15 @@ executable uuagc
     , Visage
     , VisageSyntax
     , VisagePatterns
+    , ParSchedule
+    , ParseProfile
+    , TaskTree
+    , GraphDump
   extensions: TypeSynonymInstances, MultiParamTypeClasses
   hs-source-dirs: src, src-derived
 
 Library
-   build-depends:   base >= 4, base < 5, Cabal, directory, process, uulib>=0.9.12, filepath, parallel, fgl
+   build-depends:   base >= 4, base < 5, Cabal, directory, process, uulib, filepath, parallel, parsec
    hs-source-dirs:  cabal-plugin/src
    exposed-modules: Distribution.Simple.UUAGC
    other-modules:   Distribution.Simple.UUAGC.UUAGC,

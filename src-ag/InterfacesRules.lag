@@ -9,8 +9,6 @@ INCLUDE "Interfaces.ag"
 
 imports
 {
-{-# OPTIONS_GHC -XRankNTypes #-}
-
 import Interfaces
 import SequentialTypes
 import CodeSyntax
@@ -32,7 +30,6 @@ import Data.Maybe (fromJust,mapMaybe)
 import Data.List (partition,transpose,(\\),nub,intersect, findIndex,sortBy,find,union)
 import Data.Array ((!),inRange,bounds,assocs,indices)
 import Data.Foldable(toList)
-import qualified Data.Graph.Inductive as Fgl
 import qualified Data.IntMap as IntMap
 
 import Control.Monad (forM_,when)
@@ -422,31 +419,6 @@ SEM Segments
 
 We adapt the topological sort to take a list of vertices to start
 sorting.
-
-\begin{Code}
-{
-filterNodesD :: (Fgl.Node -> Bool) -> Fgl.Gr a () -> Fgl.Gr a ()
-filterNodesD f gr = delNodesD (filter (not . f) (Fgl.nodes gr)) gr
-
-delNodesD :: [Fgl.Node] -> Fgl.Gr a () -> Fgl.Gr a ()
-delNodesD ns gr = foldr delNodeD gr ns
-
-hasLEdge :: Fgl.Gr a b -> Fgl.LEdge c -> Bool
-hasLEdge gr (a,b,_) = elem b (Fgl.suc gr a)
-
-delNodeD :: Fgl.Node -> Fgl.Gr a () -> Fgl.Gr a ()
-delNodeD n gr = let (i,_,_,o) = Fgl.context gr n
-                    es = filter (not . hasLEdge gr) (edgePairs (map snd i) (map snd o))
-                in  Fgl.insEdges es . Fgl.delNode n $ gr
-
-edgePairs :: [a] -> [b] -> [(a,b,())]
-edgePairs xs ys = let p x = map (\y -> (x,y,())) ys
-                  in  concatMap p xs
-
-isVertexChildVisit :: Map Vertex ChildVisit -> Vertex -> Bool
-isVertexChildVisit = flip Map.member
-}
-\end{Code}
 
 This gives us the subsequence required to compute the synthesized
 attributes. However, a part of this subsequence has already been
