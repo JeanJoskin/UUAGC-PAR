@@ -662,14 +662,15 @@ interfaces generate.
 \begin{Code}
 ATTR Interfaces Interface Segments Segment [ | | edp USE {Seq.><} {Seq.empty} : {Seq Edge} ]
 SEM  Segment
-  |  Segment lhs.edp = Seq.fromList [(a,a') | a <- (@inh ++ @syn), a' <- @lhs.nextAttr]
+  |  Segment lhs.edp =  Seq.fromList [(i,s) | i <- @inh, s <- @syn]
+                        Seq.>< Seq.fromList [(s,i) | s <- @syn, i <- @lhs.nextInh ]
 SEM  IRoot [ | | edp : {[Edge]} ]
   |  IRoot  lhs.edp = toList @inters.edp
-SEM  Segment  [ nextAttr : {[Vertex]} | | attr : {[Vertex]} ]
-  |  Segment lhs.attr = @inh ++ @syn
-SEM  Segments [ | | firstAttr : {[Vertex]} ]
-  |  Cons  hd.nextAttr = @tl.firstAttr
-           lhs.firstAttr = @hd.attr
-  |  Nil  lhs.firstAttr = []
+SEM  Segment  [ nextInh : {[Vertex]} | | inh : {[Vertex]} ]
+  |  Segment lhs.inh = @inh
+SEM  Segments [ | | firstInh : {[Vertex]} ]
+  |  Cons  hd.nextInh = @tl.firstInh
+           lhs.firstInh = @hd.inh
+  |  Nil  lhs.firstInh = []
 \end{Code}
 

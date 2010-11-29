@@ -28,6 +28,7 @@ import qualified Data.IntMap as IntMap
 
 import Data.Graph (edges,vertices,buildG,path,transposeG)
 import System.IO.Unsafe
+import GraphDump
 
 \end{code}
 
@@ -250,10 +251,14 @@ makeInterface sep tds del (l,m,h)
   | m > h = [([],[])]
   | otherwise = let  synSink = filter (isSink tds del) ([m..h] \\ del)
                      synNoSep = synSink \\ sep
-                     syn | not (null synSink) && null synNoSep = synSink
-                         | otherwise                           = synNoSep
+                     sepVisit = not (null synSink) && null synNoSep
+                     syn | sepVisit  = synSink
+                         | otherwise = synNoSep
                      del' = del ++ syn
-                     inh = filter (isSink tds del') ([l..(m-1)] \\ del')
+                     inhSink = filter (isSink tds del') ([l..(m-1)] \\ del')
+                     inhNoSep = inhSink \\ sep
+                     inh | sepVisit  = inhSink
+                         | otherwise = inhNoSep
                      del'' = del' ++ inh
                      rest = makeInterface sep tds del'' (l,m,h)
                 in if  null inh && null syn
@@ -264,11 +269,14 @@ makeInterface sep tds del (l,m,h)
 showAttr :: Table NTAttr -> Int -> String
 showAttr attrTable i = show (attrTable ! i) ++ " / " ++ show i
 
-vizGLabels :: (Vertex -> String) -> Graph -> String
-vizGLabels f g = concatMap (\v -> show v ++ " [label =\"" ++ f v ++ "\"]\n") (vertices g)
-
 toG :: MGraph -> Graph
 toG m = fmap Map.keys m
+
+vizTds :: Table NTAttr -> MGraph -> MGraph
+vizTds a g = vizG' "tds" (showAttr a) (fmap Map.keys g) `seq` g
+
+vizTdp :: Table CRule -> MGraph -> MGraph
+vizTdp r g = vizG' "tdp" (show) (fmap Map.keys g) `seq` g
 -}
 \end{code}
 
@@ -316,7 +324,7 @@ findInstCycles instToSynEdges tdp
 \begin{code}
 generateVisits :: Info -> Options -> Maybe Profile -> MGraph -> MGraph -> [Edge] -> (CInterfaceMap, CVisitsMap, [Edge])
 generateVisits info opt prof tds tdp dpr
-  = let  sep | datPar opt = threadedAttrs Map.empty (assocs (attrTable info))
+  = let  sep | datPar opt = sepAttrs (assocs (attrTable info))
              | otherwise  = []
          inters = makeInterfaces info sep (fmap Map.keys tds)
          inhs = Inh_IRoot{ info_Inh_IRoot = info
@@ -328,12 +336,19 @@ generateVisits info opt prof tds tdp dpr
          iroot = wrap_IRoot inters inhs
     in (inters_Syn_IRoot iroot, visits_Syn_IRoot iroot, edp_Syn_IRoot iroot)
 
-threadedAttrs :: Map (NontermIdent,Identifier) Int -> [(Int,NTAttr)] -> [Int]
-threadedAttrs d [] = []
-threadedAttrs d ((v,a):as) = let ni = getNtaNameIdent a
-                             in  if Map.member ni d
-                                 then (d Map.! ni) : v : threadedAttrs d as
-                                 else threadedAttrs (Map.insert ni v d) as
+sepAttrs :: [(Int,NTAttr)] -> [Int]
+sepAttrs as = let chained = Set.fromList (chainedNames Set.empty as)
+                  chainedIdent (v,a) = Set.member (getName (getNtaIdent a)) chained
+                  sep = filter chainedIdent as
+              in  map fst sep
+                  
+chainedNames :: Set (NontermIdent,Identifier) -> [(Int,NTAttr)] -> [String]
+chainedNames d [] = []
+chainedNames d ((v,a):as) = let ni = getNtaNameIdent a
+                                name (n,i) = getName i
+                            in  if Set.member ni d
+                                then name ni : chainedNames d as
+                                else chainedNames (Set.insert ni d) as
 
 reportLocalCycle :: MGraph -> [EdgePath] -> [[Vertex]]
 reportLocalCycle tds cyc
