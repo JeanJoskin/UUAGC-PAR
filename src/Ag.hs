@@ -155,6 +155,8 @@ compile flags input output
           pluralS n = if n == 1 then "" else "s"
 
       putStr . formatErrors $ PrErr.pp_Syn_Errors output6
+
+      mapM_ (uncurry writeFile) (Pass3.graphDumps_Syn_Grammar output3)
       
       if additionalErrors > 0
        then putStr $ "\nPlus " ++ show additionalErrors ++ " more error" ++ pluralS additionalErrors ++
@@ -239,7 +241,6 @@ loadProfile Nothing   = return Nothing
 
 formatErrors :: PP_Doc -> String
 formatErrors pp = disp pp 5000 ""
-
 
 message2error :: Message Token Pos -> Error
 message2error (Msg expect pos action) = ParserError pos (show expect) actionString

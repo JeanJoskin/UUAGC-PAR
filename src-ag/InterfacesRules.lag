@@ -17,6 +17,7 @@ import ParSchedule
 import Options
 import ParseProfile
 import TaskTree
+import GraphDump
 
 import qualified Data.Sequence as Seq
 import Data.Sequence(Seq)
@@ -261,7 +262,7 @@ ATTR Interfaces Interface Segments Segment [ | | taskTreeToVisit USE {++} {[]} :
 
 SEM  Segment
   |  Segment  loc.synOccur = gather @lhs.info (@occurAs isLhs @syn)
-              loc.lbl = vertexLabel (ruleTable @lhs.info) @lhs.visitDescr
+              loc.lbl = showRule (ruleTable @lhs.info) @lhs.visitDescr
               loc.dumpPrefix = let nm c = '_':getName @lhs.nt ++ '.':getName c ++ '-':show @lhs.n
                                in  if @lhs.o_dumpSchedGraphs
                                    then map (Just . nm) @lhs.cons
@@ -294,7 +295,7 @@ SEM IRoot
                                vwn = (iterate (addVisitWeights visitGraph) vw1) !! 2
                                visitGraph = visitGr vertexToVisit taskTreeToVisit @inters.vn @inters.taskTrees
                                topPars = foldr (mergeParProfits . uncurry (parProfits weightMap)) [] @inters.taskTrees
-                           in  topPars
+                           in  trace ("Found " ++ (show (length topPars)) ++ " spark-spots.") topPars
 
 {
 delVertices :: [Vertex] -> Graph -> Graph
@@ -372,18 +373,6 @@ defTaskWeight :: Table CRule -> Vertex -> Int
 defTaskWeight ruleTable task
     | inRange (bounds ruleTable) task = if getHeavy (ruleTable ! task) then 10 else 0
     | otherwise                       = 0
-
-shortChildVisit :: ChildVisit -> String
-shortChildVisit (ChildVisit fld rhsNt nr inhs syns) = (getName rhsNt) ++ "." ++ (getName fld) ++ " #" ++ (show nr)
-
-shortCRule :: CRule -> String
-shortCRule r = (show $ getLhsNt r) ++ "." ++ (show $ getCon r)++ "." ++ (show $ getField r) ++ "." ++ (show $ getAttr r)
-
-vertexLabel :: Table CRule -> Map Vertex ChildVisit -> Vertex -> String
-vertexLabel tbl vd v | inRange (bounds tbl) v = shortCRule (tbl ! v) ++ " (" ++ (show v) ++ ")"
-                     | Map.member v vd        = shortChildVisit (vd Map.! v) ++ " (" ++ (show v) ++ ")" 
-                     | otherwise              = (show v)
-
 }
 
 ATTR Interfaces Interface [  | | conss USE {++} {[]} : {[(NontermIdent,[ConstructorIdent])]} ]
@@ -662,15 +651,14 @@ interfaces generate.
 \begin{Code}
 ATTR Interfaces Interface Segments Segment [ | | edp USE {Seq.><} {Seq.empty} : {Seq Edge} ]
 SEM  Segment
-  |  Segment lhs.edp =  Seq.fromList [(i,s) | i <- @inh, s <- @syn]
-                        Seq.>< Seq.fromList [(s,i) | s <- @syn, i <- @lhs.nextInh ]
+  |  Segment lhs.edp = Seq.fromList [(a,a') | a <- (@inh ++ @syn), a' <- @lhs.nextAttr]
 SEM  IRoot [ | | edp : {[Edge]} ]
   |  IRoot  lhs.edp = toList @inters.edp
-SEM  Segment  [ nextInh : {[Vertex]} | | inh : {[Vertex]} ]
-  |  Segment lhs.inh = @inh
-SEM  Segments [ | | firstInh : {[Vertex]} ]
-  |  Cons  hd.nextInh = @tl.firstInh
-           lhs.firstInh = @hd.inh
-  |  Nil  lhs.firstInh = []
+SEM  Segment  [ nextAttr : {[Vertex]} | | attr : {[Vertex]} ]
+  |  Segment lhs.attr = @inh ++ @syn
+SEM  Segments [ | | firstAttr : {[Vertex]} ]
+  |  Cons  hd.nextAttr = @tl.firstAttr
+           lhs.firstAttr = @hd.attr
+  |  Nil  lhs.firstAttr = []
 \end{Code}
 

@@ -24,6 +24,7 @@ import ParseProfile (Profile)
 import HsToken(HsTokensRoot(HsTokensRoot))
 import HsTokenScanner(lexTokens)
 import SemHsTokens(sem_HsTokensRoot,wrap_HsTokensRoot, Syn_HsTokensRoot(..),Inh_HsTokensRoot(..))
+import GraphDump (GraphDumps)
 -- From uulib
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -488,6 +489,8 @@ SEM  Production
 ------------------------------------------------------------------
 -- Invoking sequential computation
 ------------------------------------------------------------------
+ATTR Grammar [ | | graphDumps : {GraphDumps} ]
+
 SEM Grammar
   | Grammar loc.ruleTable = Array.array (0,@nonts.vcount-1) (toList @nonts.rules)
             loc.attrTable = Array.array (0,@nonts.acount-1) (toList @nonts.ntattrs)
@@ -512,28 +515,33 @@ SEM Grammar
                                      , wraps      = @wrappers
                                      }
 
-            loc.(cInterfaceMap,cVisitsMap,cyclesErrors) =
+            loc.(cInterfaceMap,cVisitsMap,cyclesErrors,graphDumps) =
                               case computeSequential @info @lhs.options @lhs.profileData @directDep (@instDep ++ @aroundDep) of
-                                           CycleFree    cim cvm   -> ( cim
-                                                                     , cvm
-                                                                     , []
-                                                                     )
-                                           LocalCycle   errs      -> ( error "No interfaces for AG with local cycles"
-                                                                     , error "No visit sub-sequences for AG with local cycles"
-                                                                     , map (localCycleErr @ruleTable (visit @lhs.options)) errs
-                                                                     )
-                                           InstCycle    errs      -> ( error "No interfaces for AG with cycles through insts"
-                                                                     , error "No visit sub-sequences for AG with cycles through insts"
-                                                                     , map (instCycleErr @ruleTable (visit @lhs.options)) errs
-                                                                     )
-                                           DirectCycle  errs      -> ( error "No interfaces for AG with direct cycles"
-                                                                     , error "No visit sub-sequences for AG with direct cycles"
-                                                                     , directCycleErrs @attrTable @ruleTable (visit @lhs.options) errs
-                                                                     )
-                                           InducedCycle cim errs ->  ( cim
-                                                                     , error "No visit sub-sequences for AG with induced cycles"
-                                                                     , inducedCycleErrs @attrTable @ruleTable cim errs
-                                                                     )
+                                           CycleFree    cim cvm dmp -> ( cim
+                                                                       , cvm
+                                                                       , []
+                                                                       , dmp
+                                                                       )
+                                           LocalCycle   errs dmp    -> ( error "No interfaces for AG with local cycles"
+                                                                      , error "No visit sub-sequences for AG with local cycles"
+                                                                      , map (localCycleErr @ruleTable (visit @lhs.options)) errs
+                                                                      , dmp
+                                                                      )
+                                           InstCycle    errs dmp    -> ( error "No interfaces for AG with cycles through insts"
+                                                                      , error "No visit sub-sequences for AG with cycles through insts"
+                                                                      , map (instCycleErr @ruleTable (visit @lhs.options)) errs
+                                                                      , dmp
+                                                                      )
+                                           DirectCycle  errs dmp    -> ( error "No interfaces for AG with direct cycles"
+                                                                      , error "No visit sub-sequences for AG with direct cycles"
+                                                                      , directCycleErrs @attrTable @ruleTable (visit @lhs.options) errs
+                                                                      , dmp
+                                                                      )
+                                           InducedCycle cim errs dmp -> ( cim
+                                                                        , error "No visit sub-sequences for AG with induced cycles"
+                                                                        , inducedCycleErrs @attrTable @ruleTable cim errs
+                                                                        , dmp
+                                                                        )
             lhs.errors := (if withCycle @lhs.options then Seq.fromList @cyclesErrors else Seq.empty) 
                           Seq.>< @nonts.errors
 

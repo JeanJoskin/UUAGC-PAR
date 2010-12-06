@@ -171,7 +171,6 @@ insertTds info comp@(tds,_) e@((u,v),ee)
                                           , isEqualField (ruleTable info ! s) (ruleTable info ! t)
                                           ]
              )
-
 \end{code}
 
 If we add the direct dependencies to the Tdp graph in the way above, the
@@ -226,7 +225,7 @@ makeInterfaces info sep tds
          mkSegments = foldr (sem_Segments_Cons . uncurry sem_Segment_Segment) sem_Segments_Nil . interslist
          mkInter ((nt,cons),lmh) = sem_Interface_Interface nt cons (mkSegments lmh)
          inters = foldr (sem_Interfaces_Cons . mkInter) sem_Interfaces_Nil (zip (nonts info) (lmh info))
-     in  sem_IRoot_IRoot inters
+     in  trace (show sep) $ sem_IRoot_IRoot inters
 \end{code}
 
 The sinks of a graph are those vertices that have no outgoing
@@ -256,9 +255,9 @@ makeInterface sep tds del (l,m,h)
                          | otherwise = synNoSep
                      del' = del ++ syn
                      inhSink = filter (isSink tds del') ([l..(m-1)] \\ del')
-                     inhNoSep = inhSink \\ sep
-                     inh | sepVisit  = inhSink
-                         | otherwise = inhNoSep
+                     inh | sepVisit = intersect sep inhSink
+                         | null syn = inhSink
+                         | otherwise = inhSink \\ sep
                      del'' = del' ++ inh
                      rest = makeInterface sep tds del'' (l,m,h)
                 in if  null inh && null syn
@@ -266,18 +265,53 @@ makeInterface sep tds del (l,m,h)
                        else (inh,syn) : rest
 
 {-
-showAttr :: Table NTAttr -> Int -> String
-showAttr attrTable i = show (attrTable ! i) ++ " / " ++ show i
-
-toG :: MGraph -> Graph
-toG m = fmap Map.keys m
-
-vizTds :: Table NTAttr -> MGraph -> MGraph
-vizTds a g = vizG' "tds" (showAttr a) (fmap Map.keys g) `seq` g
-
-vizTdp :: Table CRule -> MGraph -> MGraph
-vizTdp r g = vizG' "tdp" (show) (fmap Map.keys g) `seq` g
+makeInterface :: Graph -> [Vertex] -> LMH -> [([Vertex],[Vertex])]
+makeInterface tds del (l,m,h)
+  | m > h = [([],[])]
+  | otherwise = let  syn = filter (isSink tds del) ([m..h] \\ del)
+                     del' | null syn = del
+                          | otherwise = (head syn):del
+                     inh = filter (isSink tds del') ([l..(m-1)] \\ del')
+                     del'' | null inh = del'
+                           | otherwise = (head inh):del'
+                     rest = makeInterface tds del'' (l,m,h)
+                in if  null inh && null syn
+                       then []
+                       else (inh,syn) : rest
 -}
+
+ba :: (Show a, Show b) => (a -> b) -> a -> b
+ba f a = let r = f a
+         in  trace (show (a,r)) r
+
+dmp :: Show a => a -> a
+dmp a = trace (show a) a
+
+{-
+makeInterface :: Graph -> [Vertex] -> LMH -> [([Vertex],[Vertex])]
+makeInterface tds del (l,m,h)
+  | m > h = [([],[])]
+  | otherwise = let  syn = filter (isSink tds del) ([m..h] \\ del)
+                     del' = del ++ syn
+                     inh = filter (isSink tds del') ([l..(m-1)] \\ del')
+                     del'' = del' ++ inh
+                     rest = makeInterface tds del'' (l,m,h)
+                in if  null inh && null syn
+                       then []
+                       else (inh,syn) : rest
+
+splitSep :: [Vertex] -> [([Vertex],[Vertex])] -> [([Vertex],[Vertex])]
+splitSep sep [] = []
+splitSep sep ((i,s):xs) | noSep     = (i,s):splitSep sep xs
+                        | otherwise = (iSep,sSep):(iRest,sRest):splitSep sep xs
+  where
+    noSep = (null iSep && null sSep) || (iRest == i && sRest == s)
+    iSep = intersect sep i
+    sSep = intersect sep s
+    iRest = i \\ sep
+    sRest = s \\ sep
+-}
+
 \end{code}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -324,8 +358,8 @@ findInstCycles instToSynEdges tdp
 \begin{code}
 generateVisits :: Info -> Options -> Maybe Profile -> MGraph -> MGraph -> [Edge] -> (CInterfaceMap, CVisitsMap, [Edge])
 generateVisits info opt prof tds tdp dpr
-  = let  sep | datPar opt = sepAttrs (assocs (attrTable info))
-             | otherwise  = []
+  = let  sep | sepChain opt = sepAttrs (assocs (attrTable info))
+             | otherwise    = []
          inters = makeInterfaces info sep (fmap Map.keys tds)
          inhs = Inh_IRoot{ info_Inh_IRoot = info
                          , options_Inh_IRoot = opt
@@ -419,27 +453,29 @@ computeSequential info opt prof dpr instToSynEdges
         tdp1 <- freeze tdpN
         let cyc1 = findLocCycles tdp1
         if  not (null cyc1)                                                                -- are they cyclic?
-            then do return (LocalCycle (reportLocalCycle undefined cyc1))                  -- then report an error.
+            then do return (LocalCycle (reportLocalCycle undefined cyc1) [])               -- then report an error.
             else do  mapM_ (insertTdp info comp) es                                        -- insert the other dependencies
                      tds2 <- freeze tds
+                     let graphDumps = [("tds.dot",vizTds info tds2)]
                      let cyc2 = findCycles info tds2
                      if  not (null cyc2)                                                   -- are they cyclic?
-                         then do  return (DirectCycle (reportCycle info tds2 cyc2))        -- then report an error.
+                         then do  return (DirectCycle (reportCycle info tds2 cyc2) graphDumps)     -- then report an error.
                          else do  tdp2 <- freeze tdpN
                                   let cyc4 = findInstCycles instToSynEdges tdp2
                                   if  not (null cyc4)
-                                      then do return (InstCycle (reportLocalCycle tds2 cyc4))              -- then report an error.
+                                      then do return (InstCycle (reportLocalCycle tds2 cyc4) graphDumps)              -- then report an error.
                                       else do let  (cim,cvm,edp) = generateVisits info opt prof tds2 tdp2 dpr
                                               mapM_ (insertTds info comp) (map (singleStep AttrIndu) edp) -- insert dependencies induced by visit scheduling
                                               tds3 <- freeze tds
+                                              let graphDumps = [("tds.dot",vizTds info tds3)]
                                               let cyc3 = findCycles info tds3
                                               if  not (null cyc3)                                      -- are they cyclic?
-                                                  then return (InducedCycle cim (reportCycle info tds3 cyc3)) -- then report an error.
+                                                  then return (InducedCycle cim (reportCycle info tds3 cyc3) graphDumps) -- then report an error.
                                                   else do tdp3 <- freeze tdpN
                                                           let cyc5 = findInstCycles instToSynEdges tdp3
                                                           if  not (null cyc5)
-                                                              then do return (InstCycle (reportLocalCycle tds3 cyc5))     -- then report an error.
-                                                              else do return (CycleFree cim cvm)                      -- otherwise we succeed.
+                                                              then do return (InstCycle (reportLocalCycle tds3 cyc5) graphDumps)     -- then report an error.
+                                                              else do return (CycleFree cim cvm graphDumps)                      -- otherwise we succeed.
     )
 \end{code}
 
