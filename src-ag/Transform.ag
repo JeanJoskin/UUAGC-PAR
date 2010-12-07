@@ -65,6 +65,7 @@ SEM AG
                                      @loc.checkedUniques
                                      @loc.checkedAugments
                                      @loc.checkedArounds
+                                     @elems.sepAttrs
 
 
 -------------------------------------------------------------------------------
@@ -713,6 +714,7 @@ SEM Elem
                                          "newtypes"       -> o { newtypes = True }
                                          "nonewtypes"     -> o { newtypes = False }
                                          "datpar"         -> o { datPar = True, cases = True, visit = True }
+                                         "sepvisits"      -> o { sepVisits = True }
                                          _              -> o
                           in \o -> foldr mk o @names
 
@@ -863,7 +865,6 @@ SEM Attrs [ nts:{Set NontermIdent} | | ]
                                                in (inh++chn,chn++syn, Map.fromList (Prelude.filter isUse (uses1++uses2)))
           lhs.useMap = Map.fromList (zip (Set.toList @lhs.nts) (repeat @useMap))
 
-
 {
 checkAttrs allFields nts inherited synthesized decls = foldErrors check decls nts where
   check nt decls | not (nt `Map.member` allFields) = (decls,Seq.singleton(UndefNont nt))
@@ -873,6 +874,10 @@ checkAttrs allFields nts inherited synthesized decls = foldErrors check decls nt
                                in (Map.insert nt (inh',syn') decls,einh >< esyn)
 }
 
+ATTR Elem Elems [ | | sepAttrs USE {++} {[]} : {[Identifier]} ]
+SEM Elem
+  | Attr lhs.sepAttrs = let attrsInDecl = concatMap (\(a,b) -> Map.keys a ++ Map.keys b) (Map.elems @attrs.attrDecls)
+                        in  if @sep then attrsInDecl else []
 
 -- Add declaration of self-attribute for each nonterminal: ATTR <nt> [ | | self:SELF]
 {
@@ -1029,9 +1034,10 @@ constructGrammar ::    Set NontermIdent
                     -> UniqueMap
                     -> Map NontermIdent (Map ConstructorIdent (Map Identifier [Expression]))
                     -> Map NontermIdent (Map ConstructorIdent (Map Identifier [Expression]))
+                    -> [Identifier]
                     -> Grammar
 
-constructGrammar nts ntParams gram attrs uses derivings wrappers allrules tsigs allinsts tsyns pragmaMap orderMap contextMap uniqueMap augmentsMap aroundsMap =
+constructGrammar nts ntParams gram attrs uses derivings wrappers allrules tsigs allinsts tsyns pragmaMap orderMap contextMap uniqueMap augmentsMap aroundsMap sepAttrs =
    let gr = [ (nt,Map.toList alts) | (nt,alts) <- Map.toList gram]
        nonts = map nont gr
        nont (nt,alts) =  let (inh,syn) = Map.findWithDefault (Map.empty,Map.empty) nt attrs
@@ -1064,7 +1070,7 @@ constructGrammar nts ntParams gram attrs uses derivings wrappers allrules tsigs 
                                        existsAsField (nm,_) = maybe False (const True) (lookup nm flds)
                                    in Production con cldrn rules tsigs
                             in Nonterminal nt params inh syn Map.empty (map alt alts)
-   in Grammar tsyns uses derivings wrappers nonts pragmaMap orderMap ntParams contextMap uniqueMap augmentsMap aroundsMap
+   in Grammar tsyns uses derivings wrappers nonts pragmaMap orderMap ntParams contextMap uniqueMap augmentsMap aroundsMap sepAttrs
 }
 
 {

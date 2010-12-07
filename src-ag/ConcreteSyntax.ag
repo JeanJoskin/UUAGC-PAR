@@ -32,6 +32,7 @@ DATA Elem      | Data   pos    : {Pos}
                         type   : {ComplexType}
 
                | Attr   pos    : {Pos}
+                        sep    : {Bool}
                         ctx    : {ClassContext}
                         names  : NontSet
                         attrs  : Attrs

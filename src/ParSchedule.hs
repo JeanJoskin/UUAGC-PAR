@@ -17,6 +17,7 @@ import qualified Data.Map as Map
 import Data.Maybe (mapMaybe)
 import Data.List (intersect,union,(\\),nub,sortBy,partition)
 import qualified Data.Tree as Tree
+import Control.DeepSeq
 
 import CodeSyntax (CRule)
 import CommonTypes (Type (..),Identifier (..))
@@ -136,8 +137,9 @@ mkTaskTree g i s = let (i',l') = mkTaskNode g i [] s
 mkTaskTree' :: [Vertex] -> Graph -> TaskTree Vertex
 mkTaskTree' s g = let i = concatMap Tree.flatten (dfs g s)
                       (i',t) = mkTaskTree g i (sinks g i)
+                      numT = numTaskTree t
                   in  if null i' then
-                        numTaskTree t
+                        numT `deepseq` numT
                       else
                         error "The task graph is not acyclic"
 

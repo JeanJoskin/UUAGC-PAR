@@ -64,7 +64,8 @@ options     =  [ Option ['m']     []                (NoArg (moduleOpt Nothing)) 
                , Option []        ["depth"]  (NoArg depthAttrOpt) "add depth attribute (testing purposes)"
                , Option []        ["dumpschedgraphs"] (NoArg dumpSchedGraphsOpt) "Dump scheduling graphs"
                , Option []        ["useprofile"]    (ReqArg useProfileOpt "profile file") "Use time profile for scheduling (use -px format)"
-               , Option []        ["sepchain"]    (NoArg sepChainOpt) "Separate chained attributes"
+               , Option []        ["sepvisits"]    (NoArg sepVisitsOpt) "Handles attributes annotated with SEP in separate visits"
+               , Option []        ["dumpds"]    (NoArg dumpDsOpt) "Dumps dependencies of symbols"
                ]
 
 allc = "dcfsprm"
@@ -126,7 +127,8 @@ data Options = Options{ moduleName :: ModuleHeader
                       , depthAttr :: Bool
                       , dumpSchedGraphs :: Bool
                       , useProfile :: Maybe String
-                      , sepChain :: Bool
+                      , sepVisits :: Bool
+                      , dumpDs :: Bool
                       } deriving Show
 noOptions = Options { moduleName    = NoName
                     , dataTypes     = False
@@ -185,7 +187,8 @@ noOptions = Options { moduleName    = NoName
                     , depthAttr       = False
                     , dumpSchedGraphs = False
                     , useProfile      = Nothing
-                    , sepChain        = False
+                    , sepVisits       = False
+                    , dumpDs          = False
                     }
 
 
@@ -245,7 +248,8 @@ datParOpt      opts = opts{datPar  = True, cases = True, visit = True}
 depthAttrOpt   opts = opts{depthAttr   = True}
 dumpSchedGraphsOpt opts = opts { dumpSchedGraphs = True }
 useProfileOpt nm opts = opts { useProfile = Just nm }
-sepChainOpt opts = opts { sepChain = True }
+sepVisitsOpt opts = opts { sepVisits = True }
+dumpDsOpt opts = opts { dumpDs = True }
 
 outputOpt  file  opts = opts{outputFiles  = file : outputFiles opts}            
 searchPathOpt  path  opts = opts{searchPath  = extract path ++ searchPath opts}            

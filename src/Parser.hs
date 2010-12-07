@@ -113,6 +113,7 @@ parseFile opts searchPath file
                  <*> pAlts
                 <*> pSucceed False
         <|> Attr <$> pATTR
+                 <*> pOptSep
                  <*> pOptClassContext
                  <*> pNontSet
                  <*> pAttrs
@@ -437,10 +438,14 @@ pCodescrap' = fst <$> pCodescrap
 pCodescrap ::  AGParser (String,Pos)
 pCodescrap   = pCodeBlock
 
+pOptSep :: AGParser Bool
+pOptSep = (const True <$> pSEP <?> "SEP")
+          <|> pSucceed False
+
 pSEM, pATTR, pDATA, pUSE, pLOC,pINCLUDE, pTYPE, pEquals, pColonEquals, pTilde,
       pBar, pColon, pLHS,pINST,pSET,pDERIVING,pMinus,pIntersect,pDoubleArrow,pArrow,
       pDot, pUScore, pEXT,pAt,pStar, pSmaller, pWRAPPER, pPRAGMA, pMAYBE, pEITHER, pMAP, pINTMAP,
-      pMODULE, pATTACH, pUNIQUEREF, pINH, pSYN, pAUGMENT, pPlus, pAROUND, pSEMPRAGMA
+      pMODULE, pATTACH, pUNIQUEREF, pINH, pSYN, pAUGMENT, pPlus, pAROUND, pSEMPRAGMA, pHEAVY, pSEP
       :: AGParser Pos
 pSET         = pCostReserved 90 "SET"     <?> "SET"
 pDERIVING    = pCostReserved 90 "DERIVING"<?> "DERIVING"
@@ -458,6 +463,7 @@ pINH         = pCostReserved 90 "INH"     <?> "INH"
 pSYN         = pCostReserved 90 "SYN"     <?> "SYN"
 pCHN         = pCostReserved 90 "CHN"     <?> "CHN"
 pHEAVY       = pCostReserved 90 "HEAVY"   <?> "HEAVY"
+pSEP         = pCostReserved 90 "SEP"     <?> "SEP"
 pMAYBE       = pCostReserved 5  "MAYBE"   <?> "MAYBE"
 pEITHER      = pCostReserved 5  "EITHER"  <?> "EITHER"
 pMAP         = pCostReserved 5  "MAP"     <?> "MAP"

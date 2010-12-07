@@ -3,7 +3,7 @@ module Main where
 import System                        (getArgs, getProgName, exitFailure)
 import System.Console.GetOpt         (usageInfo)
 import List                          (isSuffixOf)
-import Monad                         (zipWithM_)
+import Monad                         (zipWithM_,when)
 import Data.Maybe
 
 import qualified Data.Set as Set
@@ -153,10 +153,13 @@ compile flags input output
           additionalErrors = totalNrOfErrors - nrOfErrorsToReport
           additionalWarnings = totalNrOfWarnings - nrOfWarningsToReport
           pluralS n = if n == 1 then "" else "s"
+          
+          prefixedDumps = map (\(a,b) -> (mainName ++ '-':a,b)) (Pass3.graphDumps_Syn_Grammar output3)
 
       putStr . formatErrors $ PrErr.pp_Syn_Errors output6
 
-      mapM_ (uncurry writeFile) (Pass3.graphDumps_Syn_Grammar output3)
+      when (dumpDs flags) $
+        mapM_ (uncurry writeFile) prefixedDumps
       
       if additionalErrors > 0
        then putStr $ "\nPlus " ++ show additionalErrors ++ " more error" ++ pluralS additionalErrors ++

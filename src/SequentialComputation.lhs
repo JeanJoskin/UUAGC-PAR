@@ -237,7 +237,6 @@ been computed.
 \begin{code}
 isSink :: Graph -> [Vertex] -> Vertex -> Bool
 isSink graph del v = null (graph ! v \\ del)
-
 \end{code}
 
 Now we can make interfaces by taking inherited sinks and synthesized
@@ -249,69 +248,16 @@ makeInterface :: [Vertex] -> Graph -> [Vertex] -> LMH -> [([Vertex],[Vertex])]
 makeInterface sep tds del (l,m,h)
   | m > h = [([],[])]
   | otherwise = let  synSink = filter (isSink tds del) ([m..h] \\ del)
-                     synNoSep = synSink \\ sep
-                     sepVisit = not (null synSink) && null synNoSep
-                     syn | sepVisit  = synSink
-                         | otherwise = synNoSep
+                     synSep = intersect synSink sep
+                     syn | null synSep = synSink
+                         | otherwise   = [head synSep]
                      del' = del ++ syn
-                     inhSink = filter (isSink tds del') ([l..(m-1)] \\ del')
-                     inh | sepVisit = intersect sep inhSink
-                         | null syn = inhSink
-                         | otherwise = inhSink \\ sep
+                     inh = filter (isSink tds del') ([l..(m-1)] \\ del')
                      del'' = del' ++ inh
                      rest = makeInterface sep tds del'' (l,m,h)
                 in if  null inh && null syn
                        then []
                        else (inh,syn) : rest
-
-{-
-makeInterface :: Graph -> [Vertex] -> LMH -> [([Vertex],[Vertex])]
-makeInterface tds del (l,m,h)
-  | m > h = [([],[])]
-  | otherwise = let  syn = filter (isSink tds del) ([m..h] \\ del)
-                     del' | null syn = del
-                          | otherwise = (head syn):del
-                     inh = filter (isSink tds del') ([l..(m-1)] \\ del')
-                     del'' | null inh = del'
-                           | otherwise = (head inh):del'
-                     rest = makeInterface tds del'' (l,m,h)
-                in if  null inh && null syn
-                       then []
-                       else (inh,syn) : rest
--}
-
-ba :: (Show a, Show b) => (a -> b) -> a -> b
-ba f a = let r = f a
-         in  trace (show (a,r)) r
-
-dmp :: Show a => a -> a
-dmp a = trace (show a) a
-
-{-
-makeInterface :: Graph -> [Vertex] -> LMH -> [([Vertex],[Vertex])]
-makeInterface tds del (l,m,h)
-  | m > h = [([],[])]
-  | otherwise = let  syn = filter (isSink tds del) ([m..h] \\ del)
-                     del' = del ++ syn
-                     inh = filter (isSink tds del') ([l..(m-1)] \\ del')
-                     del'' = del' ++ inh
-                     rest = makeInterface tds del'' (l,m,h)
-                in if  null inh && null syn
-                       then []
-                       else (inh,syn) : rest
-
-splitSep :: [Vertex] -> [([Vertex],[Vertex])] -> [([Vertex],[Vertex])]
-splitSep sep [] = []
-splitSep sep ((i,s):xs) | noSep     = (i,s):splitSep sep xs
-                        | otherwise = (iSep,sSep):(iRest,sRest):splitSep sep xs
-  where
-    noSep = (null iSep && null sSep) || (iRest == i && sRest == s)
-    iSep = intersect sep i
-    sSep = intersect sep s
-    iRest = i \\ sep
-    sRest = s \\ sep
--}
-
 \end{code}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -356,11 +302,9 @@ findInstCycles instToSynEdges tdp
 \section{Tying it together}
 
 \begin{code}
-generateVisits :: Info -> Options -> Maybe Profile -> MGraph -> MGraph -> [Edge] -> (CInterfaceMap, CVisitsMap, [Edge])
-generateVisits info opt prof tds tdp dpr
-  = let  sep | sepChain opt = sepAttrs (assocs (attrTable info))
-             | otherwise    = []
-         inters = makeInterfaces info sep (fmap Map.keys tds)
+generateVisits :: Info -> Maybe Profile -> Options -> [Vertex] -> MGraph -> MGraph -> [Edge] -> (CInterfaceMap, CVisitsMap, [Edge])
+generateVisits info prof opt sep tds tdp dpr
+  = let  inters = makeInterfaces info sep (fmap Map.keys tds)
          inhs = Inh_IRoot{ info_Inh_IRoot = info
                          , options_Inh_IRoot = opt
                          , profileData_Inh_IRoot = prof
@@ -438,8 +382,8 @@ isLocLoc :: Table CRule -> EdgePath -> Bool
 isLocLoc rt ((s,t),_) = isLocal (rt ! s) && isLocal (rt ! t)
                         -- || (isInst (rt ! s) && isInst (rt ! t))
 
-computeSequential :: Info -> Options -> Maybe Profile -> [Edge] -> [Edge] -> CycleStatus
-computeSequential info opt prof dpr instToSynEdges
+computeSequential :: Info -> Options -> Maybe Profile -> [Vertex] -> [Edge] -> [Edge] -> CycleStatus
+computeSequential info opt prof sepAttrs dpr instToSynEdges
   = runST
     (do let bigBounds   = bounds (tdpToTds info)
             smallBounds = bounds (tdsToTdp info)
@@ -464,7 +408,8 @@ computeSequential info opt prof dpr instToSynEdges
                                   let cyc4 = findInstCycles instToSynEdges tdp2
                                   if  not (null cyc4)
                                       then do return (InstCycle (reportLocalCycle tds2 cyc4) graphDumps)              -- then report an error.
-                                      else do let  (cim,cvm,edp) = generateVisits info opt prof tds2 tdp2 dpr
+                                      else do let  sep = if sepVisits opt then sepAttrs else []
+                                                   (cim,cvm,edp) = generateVisits info prof opt sep tds2 tdp2 dpr
                                               mapM_ (insertTds info comp) (map (singleStep AttrIndu) edp) -- insert dependencies induced by visit scheduling
                                               tds3 <- freeze tds
                                               let graphDumps = [("tds.dot",vizTds info tds3)]

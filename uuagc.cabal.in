@@ -81,7 +81,7 @@ executable uuagc
   hs-source-dirs: src, src-derived
 
 Library
-   build-depends:   base >= 4, base < 5, Cabal, directory, process, uulib, filepath, parallel, parsec
+   build-depends:   base >= 4, base < 5, Cabal, directory, process, uulib, filepath, parallel, parsec, deepseq
    hs-source-dirs:  cabal-plugin/src
    exposed-modules: Distribution.Simple.UUAGC
    other-modules:   Distribution.Simple.UUAGC.UUAGC,

@@ -4,6 +4,7 @@ PRAGMA optimize
 PRAGMA bangpats
 PRAGMA strictwrap
 PRAGMA datpar
+PRAGMA sepvisits
 
 INCLUDE "Interfaces.ag"
 
@@ -258,7 +259,6 @@ ATTR Interfaces Interface Segments Segment [ | | taskTrees USE {++} {[]} : {[(In
 
 ATTR Interfaces Interface Segments Segment [ | | vertexToVisit USE {++} {[]} : {[(Vertex,Int)]} ]
 ATTR Interfaces Interface Segments Segment [ | | taskTreeToVisit USE {++} {[]} : {[(Int,Int)]} ]
-
 
 SEM  Segment
   |  Segment  loc.synOccur = gather @lhs.info (@occurAs isLhs @syn)
