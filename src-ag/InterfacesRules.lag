@@ -269,12 +269,11 @@ SEM  Segment
                                    else replicate (length @lhs.cons) Nothing
                     loc.tts = let hasCode v | inRange (bounds (ruleTable @lhs.info)) v = getHasCode (ruleTable @lhs.info ! v)
                                             | otherwise = True 
-                                  vssGraph' = delVertices @lhs.prev $ @lhs.vssGraph
                                   genF | @lhs.o_datPar = taskTree
                                        | otherwise     = seqTaskTree 
                               in if null @syn
                                  then replicate (length @lhs.cons) emptyTaskTree
-                                 else map (filterTaskTree' hasCode) $ zipWith (genF vssGraph' @lbl) @dumpPrefix @synOccur
+                                 else map (filterTaskTree' hasCode) $ zipWith (genF @lhs.vssGraph @lbl @lhs.prev) @dumpPrefix @synOccur
               loc.vss = map flatten @tts
               loc.visitss = zipWith3 (decimate @lbl @lhs.topPars) @loc.dumpPrefix [@lhs.ttx..] @tts
               lhs.vertexToVisit = let isThisVisit (ChildVisit _ nt n _ _) = nt == @lhs.nt && n == @lhs.n
@@ -298,15 +297,6 @@ SEM IRoot
                            in  trace ("Found " ++ (show (length topPars)) ++ " spark-spots.") topPars
 
 {
-delVertices :: [Vertex] -> Graph -> Graph
-delVertices vs g = runSTArray $ do g' <- thaw g
-                                   forM_ vs $ \v ->
-                                     writeArray g' v []
-                                   forM_ (indices g) $ \v -> do
-                                     xs <- readArray g' v
-                                     writeArray g' v (xs \\ vs)
-                                   return g'
-
 filterVerticesD :: (Int -> Bool) -> Graph -> Graph
 filterVerticesD f g = delVerticesD (filter (not . f) (vertices g)) g
 

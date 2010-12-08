@@ -382,6 +382,10 @@ isLocLoc :: Table CRule -> EdgePath -> Bool
 isLocLoc rt ((s,t),_) = isLocal (rt ! s) && isLocal (rt ! t)
                         -- || (isInst (rt ! s) && isInst (rt ! t))
 
+graphDump :: Info -> Options -> MGraph -> [(String,String)]
+graphDump info opt g | dumpDs opt = [("tds.dot",vizTds info g)]
+                     | otherwise  = []
+
 computeSequential :: Info -> Options -> Maybe Profile -> [Vertex] -> [Edge] -> [Edge] -> CycleStatus
 computeSequential info opt prof sepAttrs dpr instToSynEdges
   = runST
@@ -400,7 +404,7 @@ computeSequential info opt prof sepAttrs dpr instToSynEdges
             then do return (LocalCycle (reportLocalCycle undefined cyc1) [])               -- then report an error.
             else do  mapM_ (insertTdp info comp) es                                        -- insert the other dependencies
                      tds2 <- freeze tds
-                     let graphDumps = [("tds.dot",vizTds info tds2)]
+                     let graphDumps = graphDump info opt tds2
                      let cyc2 = findCycles info tds2
                      if  not (null cyc2)                                                   -- are they cyclic?
                          then do  return (DirectCycle (reportCycle info tds2 cyc2) graphDumps)     -- then report an error.
@@ -412,7 +416,7 @@ computeSequential info opt prof sepAttrs dpr instToSynEdges
                                                    (cim,cvm,edp) = generateVisits info prof opt sep tds2 tdp2 dpr
                                               mapM_ (insertTds info comp) (map (singleStep AttrIndu) edp) -- insert dependencies induced by visit scheduling
                                               tds3 <- freeze tds
-                                              let graphDumps = [("tds.dot",vizTds info tds3)]
+                                              let graphDumps = graphDump info opt tds3
                                               let cyc3 = findCycles info tds3
                                               if  not (null cyc3)                                      -- are they cyclic?
                                                   then return (InducedCycle cim (reportCycle info tds3 cyc3) graphDumps) -- then report an error.
