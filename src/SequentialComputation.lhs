@@ -248,9 +248,9 @@ makeInterface :: [Vertex] -> Graph -> [Vertex] -> LMH -> [([Vertex],[Vertex])]
 makeInterface sep tds del (l,m,h)
   | m > h = [([],[])]
   | otherwise = let  synSink = filter (isSink tds del) ([m..h] \\ del)
-                     synSep = intersect synSink sep
+                     synSep = intersect sep synSink
                      syn | null synSep = synSink
-                         | otherwise   = [head synSep]
+                         | otherwise   = synSep
                      del' = del ++ syn
                      inh = filter (isSink tds del') ([l..(m-1)] \\ del')
                      del'' = del' ++ inh
@@ -313,20 +313,6 @@ generateVisits info prof opt sep tds tdp dpr
                          }
          iroot = wrap_IRoot inters inhs
     in (inters_Syn_IRoot iroot, visits_Syn_IRoot iroot, edp_Syn_IRoot iroot)
-
-sepAttrs :: [(Int,NTAttr)] -> [Int]
-sepAttrs as = let chained = Set.fromList (chainedNames Set.empty as)
-                  chainedIdent (v,a) = Set.member (getName (getNtaIdent a)) chained
-                  sep = filter chainedIdent as
-              in  map fst sep
-                  
-chainedNames :: Set (NontermIdent,Identifier) -> [(Int,NTAttr)] -> [String]
-chainedNames d [] = []
-chainedNames d ((v,a):as) = let ni = getNtaNameIdent a
-                                name (n,i) = getName i
-                            in  if Set.member ni d
-                                then name ni : chainedNames d as
-                                else chainedNames (Set.insert ni d) as
 
 reportLocalCycle :: MGraph -> [EdgePath] -> [[Vertex]]
 reportLocalCycle tds cyc

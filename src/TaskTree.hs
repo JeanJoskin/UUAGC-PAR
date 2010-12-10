@@ -9,6 +9,7 @@ module TaskTree
   ) where
 
 import Control.DeepSeq
+import Debug.Trace
 
 data TaskTree a = TPar Int [TaskTree a]
                 | TSeq Int [TaskTree a]
@@ -36,7 +37,7 @@ cleanTaskTree (TSeq i cs) = let up c = (not (isTask c)) && (isSeq c || null (nod
                                 f [] = []
                                 f (x:xs) | up x = nodeChildren x ++ f xs
                                          | otherwise = x : f xs
-                            in  TSeq i (map cleanTaskTree (f cs))
+                            in  TSeq i (f (map cleanTaskTree cs))
 cleanTaskTree n = n
 
 nodeChildren (TPar i cs) = cs

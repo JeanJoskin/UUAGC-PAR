@@ -264,18 +264,19 @@ SEM  Segment
   |  Segment  loc.synOccur = gather @lhs.info (@occurAs isLhs @syn)
               loc.lbl = showRule (ruleTable @lhs.info) @lhs.visitDescr
               loc.dumpPrefix = let nm c = '_':getName @lhs.nt ++ '.':getName c ++ '-':show @lhs.n
-                               in  if @lhs.o_dumpSchedGraphs
-                                   then map (Just . nm) @lhs.cons
-                                   else replicate (length @lhs.cons) Nothing
-                    loc.tts = let hasCode v | inRange (bounds (ruleTable @lhs.info)) v = getHasCode (ruleTable @lhs.info ! v)
+                               in  map nm @lhs.cons
+              loc.dumpTTS = \nm -> if @lhs.o_dumpSchedGraphs
+                                   then zipWith (\p tt -> vizTT' (p ++ "-" ++ nm) @lbl tt) @dumpPrefix
+                                   else id
+              HEAVY loc.tts = let hasCode v | inRange (bounds (ruleTable @lhs.info)) v = getHasCode (ruleTable @lhs.info ! v)
                                             | otherwise = True 
                                   genF | @lhs.o_datPar = taskTree
-                                       | otherwise     = seqTaskTree 
+                                       | otherwise     = seqTaskTree
                               in if null @syn
                                  then replicate (length @lhs.cons) emptyTaskTree
-                                 else map (filterTaskTree' hasCode) $ zipWith (genF @lhs.vssGraph @lbl @lhs.prev) @dumpPrefix @synOccur
+                                 else @dumpTTS "tt" $ map (filterTaskTree' hasCode . genF @lhs.vssGraph @lhs.prev) @synOccur
               loc.vss = map flatten @tts
-              loc.visitss = zipWith3 (decimate @lbl @lhs.topPars) @loc.dumpPrefix [@lhs.ttx..] @tts
+              loc.visitss = @dumpTTS "dtt" $ zipWith (decimate @lhs.topPars) [@lhs.ttx..] @tts
               lhs.vertexToVisit = let isThisVisit (ChildVisit _ nt n _ _) = nt == @lhs.nt && n == @lhs.n
                                       assocs = filter (isThisVisit . snd) (Map.assocs @lhs.visitDescr)
                                   in  zip (map fst assocs) (repeat @lhs.vn)
@@ -552,8 +553,9 @@ SEM  Segments [ | | segs : CSegments
   |  Cons  lhs.segs = @hd.seg : @tl.segs
   |  Nil   lhs.segs = []
 
-SEM  Segment [ | | seg : CSegment
-                   cvisits : {[CVisit]} ] -- For this visit, for each constructor the CVisit
+ATTR Segment [ | | seg : CSegment ]
+
+SEM  Segment [ | | cvisits : {[CVisit]} ] -- For this visit, for each constructor the CVisit
   |  Segment  lhs.seg = -- A fake dependency fixes a type-3 cycle
                         if False then undefined @lhs.vssGraph @lhs.visitDescr @lhs.prev else CSegment @inhmap @synmap
               loc.inhmap : {Map Identifier Type}

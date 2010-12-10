@@ -37,25 +37,11 @@ data ParProfit = ParProfit {
 profitTreshold = 1
 profitUse = 2
 
-seqTaskTree :: Graph -> (Vertex -> String) -> [Vertex] -> Maybe String -> [Vertex] -> TaskTree Vertex
-seqTaskTree gr lbl ex dumpPrefix syn =
-    let dmpTT tt = case dumpPrefix of
-                      (Just prefix) -> vizTT' (prefix ++ "-tt") lbl tt
-                      _             -> tt
-        dmpG g = case dumpPrefix of
-                   (Just prefix) -> vizG' (prefix ++ "-g") lbl g
-                   _             -> g
-    in  dmpTT $ sequentialTasks $ flatten $ taskTree (dmpG gr) lbl ex Nothing syn
+seqTaskTree :: Graph -> [Vertex] -> [Vertex] -> TaskTree Vertex
+seqTaskTree gr ex syn = sequentialTasks $ flatten $ taskTree gr ex syn
 
-taskTree :: Graph -> (Vertex -> String) -> [Vertex] -> Maybe String -> [Vertex] -> TaskTree Vertex
-taskTree gr lbl ex dumpPrefix syn =
-     let dmpTT tt = case dumpPrefix of
-                      (Just prefix) -> vizTT' (prefix ++ "-tt") lbl tt
-                      _             -> tt
-         dmpG g = case dumpPrefix of
-                    (Just prefix) -> vizG' (prefix ++ "-g") lbl g
-                    _             -> g
-     in  dmpTT . mkTaskTree' ex syn . dmpG $ gr
+taskTree :: Graph -> [Vertex] -> [Vertex] -> TaskTree Vertex
+taskTree gr ex syn = mkTaskTree' ex syn gr
 
 parProfits :: Ord a => Map a Int -> Int -> TaskTree a -> [ParProfit]
 parProfits w s t = let accW = accNodeWeight w t
@@ -95,14 +81,14 @@ parNodes n = case n of
                (TSeq _ cs) -> concatMap parNodes cs
                _           -> []
 
-decimate :: Show a => (Vertex -> String) -> [ParProfit] -> Maybe String -> Int -> TaskTree a -> TaskTree a
-decimate lbl ps dumpPrefix s t =
+decimate :: [ParProfit] -> Int -> TaskTree a -> TaskTree a
+decimate ps s t =
     let inScope = filter (\p -> scope p == s) ps
         parBranches = concatMap branches inScope
         decim = cleanTaskTree $ decimate' parBranches t
     in  decim
 
-decimate' :: Show a => [Int] -> TaskTree a -> TaskTree a
+decimate' :: [Int] -> TaskTree a -> TaskTree a
 decimate' ns (TSeq i cs) = let f [] = []
                                f (x:xs) = case (decimate' ns x) of
                                             (TPar pi pcs) ->
