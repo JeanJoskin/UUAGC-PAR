@@ -874,9 +874,12 @@ checkAttrs allFields nts inherited synthesized decls = foldErrors check decls nt
                                in (Map.insert nt (inh',syn') decls,einh >< esyn)
 }
 
+SEM Attrs [ | | attrsInDecl : {AttrNames} ]
+  | Attrs lhs.attrsInDecl = @inh ++ @chn ++ @syn
+
 ATTR Elem Elems [ | | sepAttrs USE {++} {[]} : {[Identifier]} ]
 SEM Elem
-  | Attr lhs.sepAttrs = let attrsInDecl = concatMap (\(a,b) -> Map.keys a ++ Map.keys b) (Map.elems @attrs.attrDecls)
+  | Attr lhs.sepAttrs = let attrsInDecl = map (\(a,_,_) -> a) @attrs.attrsInDecl
                         in  if @sep then attrsInDecl else []
 
 -- Add declaration of self-attribute for each nonterminal: ATTR <nt> [ | | self:SELF]
