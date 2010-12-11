@@ -248,9 +248,9 @@ makeInterface :: [Vertex] -> Graph -> [Vertex] -> LMH -> [([Vertex],[Vertex])]
 makeInterface sep tds del (l,m,h)
   | m > h = [([],[])]
   | otherwise = let  synSink = filter (isSink tds del) ([m..h] \\ del)
-                     synSep = intersect sep synSink
-                     syn | null synSep = synSink
-                         | otherwise   = synSep
+                     synNoSep = synSink \\ sep
+                     syn | null synNoSep = intersect sep synSink
+                         | otherwise     = synNoSep
                      del' = del ++ syn
                      inh = filter (isSink tds del') ([l..(m-1)] \\ del')
                      del'' = del' ++ inh
@@ -302,7 +302,7 @@ findInstCycles instToSynEdges tdp
 \section{Tying it together}
 
 \begin{code}
-generateVisits :: Info -> Maybe Profile -> Options -> [Vertex] -> MGraph -> MGraph -> [Edge] -> (CInterfaceMap, CVisitsMap, [Edge])
+generateVisits :: Info -> Maybe Profile -> Options -> [Vertex] -> MGraph -> MGraph -> [Edge] -> (CInterfaceMap, CVisitsMap, [Edge], [(String,String)])
 generateVisits info prof opt sep tds tdp dpr
   = let  inters = makeInterfaces info sep (fmap Map.keys tds)
          inhs = Inh_IRoot{ info_Inh_IRoot = info
@@ -312,7 +312,7 @@ generateVisits info prof opt sep tds tdp dpr
                          , dpr_Inh_IRoot  = dpr
                          }
          iroot = wrap_IRoot inters inhs
-    in (inters_Syn_IRoot iroot, visits_Syn_IRoot iroot, edp_Syn_IRoot iroot)
+    in (inters_Syn_IRoot iroot, visits_Syn_IRoot iroot, edp_Syn_IRoot iroot, taskTreeDumps_Syn_IRoot iroot)
 
 reportLocalCycle :: MGraph -> [EdgePath] -> [[Vertex]]
 reportLocalCycle tds cyc
@@ -399,10 +399,10 @@ computeSequential info opt prof sepAttrs dpr instToSynEdges
                                   if  not (null cyc4)
                                       then do return (InstCycle (reportLocalCycle tds2 cyc4) graphDumps)              -- then report an error.
                                       else do let  sep = if sepVisits opt then sepAttrs else []
-                                                   (cim,cvm,edp) = generateVisits info prof opt sep tds2 tdp2 dpr
+                                                   (cim,cvm,edp,dmp) = generateVisits info prof opt sep tds2 tdp2 dpr
                                               mapM_ (insertTds info comp) (map (singleStep AttrIndu) edp) -- insert dependencies induced by visit scheduling
                                               tds3 <- freeze tds
-                                              let graphDumps = graphDump info opt tds3
+                                              let graphDumps = dmp ++ graphDump info opt tds3
                                               let cyc3 = findCycles info tds3
                                               if  not (null cyc3)                                      -- are they cyclic?
                                                   then return (InducedCycle cim (reportCycle info tds3 cyc3) graphDumps) -- then report an error.

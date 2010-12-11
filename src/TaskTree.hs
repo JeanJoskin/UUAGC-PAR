@@ -32,7 +32,7 @@ cleanTaskTree (TPar i cs) = let up c = (not (isTask c)) && (isPar c || null (nod
                                 f [] = []
                                 f (x:xs) | up x = nodeChildren x ++ f xs
                                          | otherwise = x : f xs
-                            in  TPar i (map cleanTaskTree (f cs))
+                            in  TPar i (f (map cleanTaskTree cs))
 cleanTaskTree (TSeq i cs) = let up c = (not (isTask c)) && (isSeq c || null (nodeChildren c))
                                 f [] = []
                                 f (x:xs) | up x = nodeChildren x ++ f xs
@@ -59,7 +59,7 @@ filterTaskTree f (TPar i xs) = TPar i $ map (filterTaskTree f) (fltTT f xs)
 filterTaskTree f (TSeq i xs) = TSeq i $ map (filterTaskTree f) (fltTT f xs)
 
 filterTaskTree' :: (a -> Bool) -> TaskTree a -> TaskTree a
-filterTaskTree' f = cleanTaskTree . filterTaskTree f
+filterTaskTree' f =  filterTaskTree f
 
 fltTT :: (a -> Bool) -> [TaskTree a] -> [TaskTree a]
 fltTT f xs = let f' x = case (x) of

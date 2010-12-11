@@ -2,6 +2,8 @@ module GraphDump
   (GraphDumps
   ,vizG'
   ,vizTT'
+  ,vizTree
+  ,vizTreeH
   ,vizTds
   ,showRule
   ,showAttr
@@ -88,10 +90,26 @@ vizTree lbl t = "digraph G {\n" ++
                  vizTEdges t ++
                  "}"
 
+vizTreeH :: (a -> String) -> (Int -> Bool) -> TaskTree a -> String
+vizTreeH lbl hvy t = "digraph G {\n" ++
+                      "ordering = out\n" ++
+                      vizTLabelsH lbl hvy t ++
+                      vizTEdges t ++
+                      "}"
+
 vizTLabels :: (a -> String) -> TaskTree a -> String
 vizTLabels lbl (TPar i xs) = (show i) ++ " [label =\"Par\"]\n" ++ concatMap (vizTLabels lbl) xs
 vizTLabels lbl (TSeq i xs) = (show i) ++ " [label =\"Seq\"]\n" ++ concatMap (vizTLabels lbl) xs
 vizTLabels lbl (TTask i n) = (show i) ++ " [label =\"" ++ lbl n ++ "\",shape=box]\n"
+
+shapeH :: (Int -> Bool) -> String -> Int -> String
+shapeH hvy d i | hvy i = "doubleoctagon"
+               | otherwise = d
+
+vizTLabelsH :: (a -> String) -> (Int -> Bool) -> TaskTree a -> String
+vizTLabelsH lbl hvy (TPar i xs) = (show i) ++ " [label =\"Par\",shape=" ++ shapeH hvy "ellipse" i ++ "]\n" ++ concatMap (vizTLabelsH lbl hvy) xs
+vizTLabelsH lbl hvy (TSeq i xs) = (show i) ++ " [label =\"Seq\",shape=" ++ shapeH hvy "ellipse" i ++ "]\n" ++ concatMap (vizTLabelsH lbl hvy) xs
+vizTLabelsH lbl hvy (TTask i n) = (show i) ++ " [label =\"" ++ lbl n ++ "\",shape=" ++ shapeH hvy "box" i ++ "]\n"
 
 vizTEdges :: TaskTree a -> String
 vizTEdges (TPar i xs) = concatMap (\x -> (show i) ++ " -> " ++ (show $ nodeIdent x) ++ "\n") xs

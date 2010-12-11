@@ -1,6 +1,6 @@
 module ParSchedule 
   (TaskTree (..)
-  , ParProfit
+  , ParProfit (..)
   , sequentialTasks
   , taskTree
   , seqTaskTree
@@ -85,8 +85,7 @@ decimate :: [ParProfit] -> Int -> TaskTree a -> TaskTree a
 decimate ps s t =
     let inScope = filter (\p -> scope p == s) ps
         parBranches = concatMap branches inScope
-        decim = cleanTaskTree $ decimate' parBranches t
-    in  decim
+    in  decimate' parBranches t
 
 decimate' :: [Int] -> TaskTree a -> TaskTree a
 decimate' ns (TSeq i cs) = let f [] = []

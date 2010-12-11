@@ -16,7 +16,7 @@ DATA  CGrammar
                 paramMap  : {ParamMap}
                 contextMap: {ContextMap}
                 aroundsMap: {Map NontermIdent (Map ConstructorIdent (Set Identifier))}
-                sepAttrs   :  {[Identifier]}
+                sepAttrs   :  {[(NontermIdent,Identifier)]}
 
 TYPE CNonterminals = [CNonterminal]
 

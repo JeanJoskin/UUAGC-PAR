@@ -255,33 +255,42 @@ is empty.
 
 \begin{Code}
 
-ATTR Interfaces Interface Segments Segment [ | | taskTrees USE {++} {[]} : {[(Int,TaskTree Vertex)]} ]
+ATTR Interfaces Interface Segments [ | | taskTrees USE {++} {[]} : {[(Int,TaskTree Vertex)]} ]
+
+ATTR SEP Segment [ | | taskTrees USE {++} {[]} : {[(Int,TaskTree Vertex)]} ]
+
 
 ATTR Interfaces Interface Segments Segment [ | | vertexToVisit USE {++} {[]} : {[(Vertex,Int)]} ]
 ATTR Interfaces Interface Segments Segment [ | | taskTreeToVisit USE {++} {[]} : {[(Int,Int)]} ]
 
+ATTR IRoot Interfaces Interface Segments Segment [ | | taskTreeDumps USE {++} {[]} : {[(String,String)]} ]
+
+
 SEM  Segment
   |  Segment  loc.synOccur = gather @lhs.info (@occurAs isLhs @syn)
-              loc.lbl = showRule (ruleTable @lhs.info) @lhs.visitDescr
-              loc.dumpPrefix = let nm c = '_':getName @lhs.nt ++ '.':getName c ++ '-':show @lhs.n
-                               in  map nm @lhs.cons
-              loc.dumpTTS = \nm -> if @lhs.o_dumpSchedGraphs
-                                   then zipWith (\p tt -> vizTT' (p ++ "-" ++ nm) @lbl tt) @dumpPrefix
-                                   else id
               HEAVY loc.tts = let hasCode v | inRange (bounds (ruleTable @lhs.info)) v = getHasCode (ruleTable @lhs.info ! v)
                                             | otherwise = True 
                                   genF | @lhs.o_datPar = taskTree
                                        | otherwise     = seqTaskTree
                               in if null @syn
                                  then replicate (length @lhs.cons) emptyTaskTree
-                                 else @dumpTTS "tt" $ map (filterTaskTree' hasCode . genF @lhs.vssGraph @lhs.prev) @synOccur
+                                 else map (filterTaskTree' hasCode . genF @lhs.vssGraph @lhs.prev) @synOccur
               loc.vss = map flatten @tts
-              loc.visitss = @dumpTTS "dtt" $ zipWith (decimate @lhs.topPars) [@lhs.ttx..] @tts
+              loc.visitss = zipWith (\a b -> cleanTaskTree (decimate @lhs.topPars a b)) [@lhs.ttx..] @tts
               lhs.vertexToVisit = let isThisVisit (ChildVisit _ nt n _ _) = nt == @lhs.nt && n == @lhs.n
                                       assocs = filter (isThisVisit . snd) (Map.assocs @lhs.visitDescr)
                                   in  zip (map fst assocs) (repeat @lhs.vn)
               lhs.taskTreeToVisit = zip [@lhs.ttx..] (replicate (length @lhs.cons) @lhs.vn) 
               lhs.taskTrees = zip [@lhs.ttx..] @tts
+              lhs.taskTreeDumps = let pnm c = getName @lhs.nt ++ '.':getName c ++ '-':show @lhs.n
+                                      prefixes = map pnm @lhs.cons
+                                      localTops = map (\s -> concatMap branches $ filter (\p -> scope p == s) @lhs.topPars) [@lhs.ttx..]
+                                      hvy t n = elem n t
+                                      lbl = showRule (ruleTable @lhs.info) @lhs.visitDescr
+                                      dmp nm = zipWith3 (\p t tt -> (p ++ "-" ++ nm ++ ".dot", vizTreeH lbl (hvy t) tt)) prefixes localTops
+                                  in  if @lhs.o_dumpSchedGraphs
+                                      then dmp "tt" @tts ++ dmp "decim" @visitss
+                                      else []
 
 ATTR Interfaces Interface Segments Segment [ topPars : {[ParProfit]} | | ]
 

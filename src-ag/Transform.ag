@@ -877,10 +877,10 @@ checkAttrs allFields nts inherited synthesized decls = foldErrors check decls nt
 SEM Attrs [ | | attrsInDecl : {AttrNames} ]
   | Attrs lhs.attrsInDecl = @inh ++ @chn ++ @syn
 
-ATTR Elem Elems [ | | sepAttrs USE {++} {[]} : {[Identifier]} ]
+ATTR Elem Elems [ | | sepAttrs USE {++} {[]} : {[(NontermIdent,Identifier)]} ]
 SEM Elem
   | Attr lhs.sepAttrs = let attrsInDecl = map (\(a,_,_) -> a) @attrs.attrsInDecl
-                        in  if @sep then attrsInDecl else []
+                        in  if @sep then zip (Set.toList @names.collectedNames) attrsInDecl else []
 
 -- Add declaration of self-attribute for each nonterminal: ATTR <nt> [ | | self:SELF]
 {
@@ -1037,7 +1037,7 @@ constructGrammar ::    Set NontermIdent
                     -> UniqueMap
                     -> Map NontermIdent (Map ConstructorIdent (Map Identifier [Expression]))
                     -> Map NontermIdent (Map ConstructorIdent (Map Identifier [Expression]))
-                    -> [Identifier]
+                    -> [(NontermIdent,Identifier)]
                     -> Grammar
 
 constructGrammar nts ntParams gram attrs uses derivings wrappers allrules tsigs allinsts tsyns pragmaMap orderMap contextMap uniqueMap augmentsMap aroundsMap sepAttrs =

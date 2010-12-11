@@ -514,7 +514,7 @@ SEM Grammar
                                      , nonts      = @nonts.nonts
                                      , wraps      = @wrappers
                                      }
-            loc.sepVertices = let ntaIsSep = flip elem @sepAttrs . getNtaIdent . snd
+            loc.sepVertices = let ntaIsSep = flip elem @sepAttrs . getNtaNameIdent . snd
                               in  map fst $ filter ntaIsSep (toList @nonts.ntattrs)
 
             loc.(cInterfaceMap,cVisitsMap,cyclesErrors,graphDumps) =

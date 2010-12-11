@@ -107,4 +107,3 @@ DATA NontSet   | NamedSet   name      : {NontermIdent}
                | Intersect  set1,set2 : NontSet
                | Difference set1,set2 : NontSet
                | Path       from,to   : {NontermIdent}
-               
