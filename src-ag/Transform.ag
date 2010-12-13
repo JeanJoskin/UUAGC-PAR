@@ -16,6 +16,7 @@ import qualified Data.Sequence as Seq
 import Data.Sequence(Seq, empty, (><),fromList)
 import Data.Foldable(toList)
 import UU.Scanner.Position(noPos)
+import Debug.Trace
 
 import ConcreteSyntax
 import AbstractSyntax
@@ -880,7 +881,10 @@ SEM Attrs [ | | attrsInDecl : {AttrNames} ]
 ATTR Elem Elems [ | | sepAttrs USE {++} {[]} : {[(NontermIdent,Identifier)]} ]
 SEM Elem
   | Attr lhs.sepAttrs = let attrsInDecl = map (\(a,_,_) -> a) @attrs.attrsInDecl
-                        in  if @sep then zip (Set.toList @names.collectedNames) attrsInDecl else []
+                            nts = Set.toList @names.collectedNames
+                        in  if @sep
+                            then [ (nt,a) | nt <- nts, a <- attrsInDecl ]
+                            else []
 
 -- Add declaration of self-attribute for each nonterminal: ATTR <nt> [ | | self:SELF]
 {

@@ -255,26 +255,28 @@ is empty.
 
 \begin{Code}
 
-ATTR Interfaces Interface Segments [ | | taskTrees USE {++} {[]} : {[(Int,TaskTree Vertex)]} ]
-
-ATTR SEP Segment [ | | taskTrees USE {++} {[]} : {[(Int,TaskTree Vertex)]} ]
-
+ATTR Interfaces Interface Segments Segment [ | | taskTrees USE {++} {[]} : {[(Int,TaskTree Vertex)]} ]
 
 ATTR Interfaces Interface Segments Segment [ | | vertexToVisit USE {++} {[]} : {[(Vertex,Int)]} ]
 ATTR Interfaces Interface Segments Segment [ | | taskTreeToVisit USE {++} {[]} : {[(Int,Int)]} ]
 
 ATTR IRoot Interfaces Interface Segments Segment [ | | taskTreeDumps USE {++} {[]} : {[(String,String)]} ]
 
+ATTR Interfaces Interface Segments Segment [ | | taskTreesX USE {++} {[]} : {[TaskTree Vertex]} ]
+
 
 SEM  Segment
   |  Segment  loc.synOccur = gather @lhs.info (@occurAs isLhs @syn)
-              HEAVY loc.tts = let hasCode v | inRange (bounds (ruleTable @lhs.info)) v = getHasCode (ruleTable @lhs.info ! v)
-                                            | otherwise = True 
-                                  genF | @lhs.o_datPar = taskTree
-                                       | otherwise     = seqTaskTree
-                              in if null @syn
-                                 then replicate (length @lhs.cons) emptyTaskTree
-                                 else map (filterTaskTree' hasCode . genF @lhs.vssGraph @lhs.prev) @synOccur
+                    loc.tts' = let genF | @lhs.o_datPar = taskTree
+                                        | otherwise     = seqTaskTree
+                               in if null @syn
+                                  then replicate (length @lhs.cons) emptyTaskTree
+                                  else map (genF @lhs.vssGraph) @synOccur
+              lhs.taskTreesX = @loc.tts'
+              loc.tts = let hasCode v | inRange (bounds (ruleTable @lhs.info)) v = getHasCode (ruleTable @lhs.info ! v)
+                                      | otherwise = True
+                            taskFilter v = hasCode v && notElem v @lhs.prev
+                        in  map (filterTaskTree' taskFilter) @tts'
               loc.vss = map flatten @tts
               loc.visitss = zipWith (\a b -> cleanTaskTree (decimate @lhs.topPars a b)) [@lhs.ttx..] @tts
               lhs.vertexToVisit = let isThisVisit (ChildVisit _ nt n _ _) = nt == @lhs.nt && n == @lhs.n
@@ -286,7 +288,7 @@ SEM  Segment
                                       prefixes = map pnm @lhs.cons
                                       localTops = map (\s -> concatMap branches $ filter (\p -> scope p == s) @lhs.topPars) [@lhs.ttx..]
                                       hvy t n = elem n t
-                                      lbl = showRule (ruleTable @lhs.info) @lhs.visitDescr
+                                      lbl v = showRule (ruleTable @lhs.info) @lhs.visitDescr v ++ " v:" ++ (show @lhs.vn)
                                       dmp nm = zipWith3 (\p t tt -> (p ++ "-" ++ nm ++ ".dot", vizTreeH lbl (hvy t) tt)) prefixes localTops
                                   in  if @lhs.o_dumpSchedGraphs
                                       then dmp "tt" @tts ++ dmp "decim" @visitss
@@ -304,23 +306,10 @@ SEM IRoot
                                vwn = (iterate (addVisitWeights visitGraph) vw1) !! 2
                                visitGraph = visitGr vertexToVisit taskTreeToVisit @inters.vn @inters.taskTrees
                                topPars = foldr (mergeParProfits . uncurry (parProfits weightMap)) [] @inters.taskTrees
-                           in  trace ("Found " ++ (show (length topPars)) ++ " spark-spots.") topPars
+                               lbl v = show v ++ ": " ++ show (vw1 Map.! v) ++ " / " ++ show (vwn Map.! v)
+                           in  vizG' "vg" lbl visitGraph `seq` trace ("Found " ++ (show (length topPars)) ++ " spark-spots.") topPars
 
 {
-filterVerticesD :: (Int -> Bool) -> Graph -> Graph
-filterVerticesD f g = delVerticesD (filter (not . f) (vertices g)) g
-
-delVerticesD :: [Vertex] -> Graph -> Graph
-delVerticesD vs g = runSTArray $ do g' <- thaw g
-                                    forM_ vs $ \v -> do
-                                      o <- readArray g' v
-                                      writeArray g' v []
-                                      forM_ (vertices g) $ \w -> do
-                                        xs <- readArray g' w
-                                        when (elem v xs) $
-                                          writeArray g' w (union (xs \\ [v]) o)
-                                    return g'
-
 mkWeightMap :: Table CRule -> Map Vertex Int -> Map Int Int -> [Vertex] -> Map Vertex Int
 mkWeightMap ruleTable vertexToVisit visitW ts =
     let weight t  | Map.member t vertexToVisit = (t,visitW Map.! (vertexToVisit Map.! t))
@@ -329,8 +318,8 @@ mkWeightMap ruleTable vertexToVisit visitW ts =
 
 visitGr :: Map Vertex Int -> Map Int Int -> Int -> [(Int,TaskTree Vertex)] -> Graph
 visitGr vertexToVisit taskTreeToVisit nv tts =
-    let ttDeps tt = zip (repeat (taskTreeToVisit Map.! fst tt))
-                         (mapMaybe (flip Map.lookup vertexToVisit) (flatten (snd tt)))
+    let ttDeps tt = zip (mapMaybe (flip Map.lookup vertexToVisit) (flatten (snd tt)))
+                        (repeat (taskTreeToVisit Map.! fst tt))
         ttsDeps = nub $ concatMap ttDeps tts
     in  buildG (0,nv - 1) ttsDeps
 

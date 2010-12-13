@@ -37,11 +37,11 @@ data ParProfit = ParProfit {
 profitTreshold = 1
 profitUse = 2
 
-seqTaskTree :: Graph -> [Vertex] -> [Vertex] -> TaskTree Vertex
-seqTaskTree gr ex syn = sequentialTasks $ flatten $ taskTree gr ex syn
+seqTaskTree :: Graph -> [Vertex] -> TaskTree Vertex
+seqTaskTree gr syn = sequentialTasks $ flatten $ taskTree gr syn
 
-taskTree :: Graph -> [Vertex] -> [Vertex] -> TaskTree Vertex
-taskTree gr ex syn = mkTaskTree' ex syn gr
+taskTree :: Graph -> [Vertex] -> TaskTree Vertex
+taskTree gr syn = mkTaskTree' syn gr
 
 parProfits :: Ord a => Map a Int -> Int -> TaskTree a -> [ParProfit]
 parProfits w s t = let accW = accNodeWeight w t
@@ -119,14 +119,14 @@ mkTaskTree :: Graph -> [Vertex] -> [Vertex] -> ([Vertex],TaskTree Vertex)
 mkTaskTree g i s = let (i',l') = mkTaskNode g i [] s
                    in  (i',TSeq 0 (reverse l'))
 
-mkTaskTree' :: [Vertex] -> [Vertex] -> Graph -> TaskTree Vertex
-mkTaskTree' ex syn g = let i = concatMap Tree.flatten (dfs g syn) \\ ex
-                           (i',t) = mkTaskTree g i (sinks g i)
-                           numT = numTaskTree t
-                       in  if null i' then
-                             numT `deepseq` numT
-                           else
-                             error "The task graph is not acyclic"
+mkTaskTree' :: [Vertex] -> Graph -> TaskTree Vertex
+mkTaskTree' syn g = let i = concatMap Tree.flatten (dfs g syn)
+                        (i',t) = mkTaskTree g i (sinks g i)
+                        numT = numTaskTree t
+                    in  if null i' then
+                          numT `deepseq` numT
+                        else
+                          error "The task graph is not acyclic"
 
 sinks :: Graph -> [Vertex] -> [Vertex]
 sinks g i = filter (isSink g i) i
