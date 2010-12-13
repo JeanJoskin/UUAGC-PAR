@@ -66,7 +66,7 @@ SEM AG
                                      @loc.checkedUniques
                                      @loc.checkedAugments
                                      @loc.checkedArounds
-                                     @elems.sepAttrs
+                                     @elems.beforeAttrs
 
 
 -------------------------------------------------------------------------------
@@ -878,13 +878,13 @@ checkAttrs allFields nts inherited synthesized decls = foldErrors check decls nt
 SEM Attrs [ | | attrsInDecl : {AttrNames} ]
   | Attrs lhs.attrsInDecl = @inh ++ @chn ++ @syn
 
-ATTR Elem Elems [ | | sepAttrs USE {++} {[]} : {[(NontermIdent,Identifier)]} ]
+ATTR Elem Elems [ | | beforeAttrs USE {++} {[]} : {[(NontermIdent,Identifier)]} ]
 SEM Elem
-  | Attr lhs.sepAttrs = let attrsInDecl = map (\(a,_,_) -> a) @attrs.attrsInDecl
-                            nts = Set.toList @names.collectedNames
-                        in  if @sep
-                            then [ (nt,a) | nt <- nts, a <- attrsInDecl ]
-                            else []
+  | Attr lhs.beforeAttrs = let attrsInDecl = map (\(a,_,_) -> a) @attrs.attrsInDecl
+                               nts = Set.toList @names.collectedNames
+                           in  if @before
+                               then [ (nt,a) | nt <- nts, a <- attrsInDecl ]
+                               else []
 
 -- Add declaration of self-attribute for each nonterminal: ATTR <nt> [ | | self:SELF]
 {
@@ -1044,7 +1044,7 @@ constructGrammar ::    Set NontermIdent
                     -> [(NontermIdent,Identifier)]
                     -> Grammar
 
-constructGrammar nts ntParams gram attrs uses derivings wrappers allrules tsigs allinsts tsyns pragmaMap orderMap contextMap uniqueMap augmentsMap aroundsMap sepAttrs =
+constructGrammar nts ntParams gram attrs uses derivings wrappers allrules tsigs allinsts tsyns pragmaMap orderMap contextMap uniqueMap augmentsMap aroundsMap beforeAttrs =
    let gr = [ (nt,Map.toList alts) | (nt,alts) <- Map.toList gram]
        nonts = map nont gr
        nont (nt,alts) =  let (inh,syn) = Map.findWithDefault (Map.empty,Map.empty) nt attrs
@@ -1077,7 +1077,7 @@ constructGrammar nts ntParams gram attrs uses derivings wrappers allrules tsigs 
                                        existsAsField (nm,_) = maybe False (const True) (lookup nm flds)
                                    in Production con cldrn rules tsigs
                             in Nonterminal nt params inh syn Map.empty (map alt alts)
-   in Grammar tsyns uses derivings wrappers nonts pragmaMap orderMap ntParams contextMap uniqueMap augmentsMap aroundsMap sepAttrs
+   in Grammar tsyns uses derivings wrappers nonts pragmaMap orderMap ntParams contextMap uniqueMap augmentsMap aroundsMap beforeAttrs
 }
 
 {

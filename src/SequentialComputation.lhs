@@ -220,12 +220,12 @@ See modules Interfaces and InterfacesRules for more information.
 
 \begin{code}
 makeInterfaces :: Info -> [Vertex] -> Graph -> T_IRoot
-makeInterfaces info sep tds
-  =  let interslist = reverse . makeInterface sep tds []
+makeInterfaces info before tds
+  =  let interslist = reverse . makeInterface before tds []
          mkSegments = foldr (sem_Segments_Cons . uncurry sem_Segment_Segment) sem_Segments_Nil . interslist
          mkInter ((nt,cons),lmh) = sem_Interface_Interface nt cons (mkSegments lmh)
          inters = foldr (sem_Interfaces_Cons . mkInter) sem_Interfaces_Nil (zip (nonts info) (lmh info))
-     in  trace (show sep) $ sem_IRoot_IRoot inters
+     in  trace (show before) $ sem_IRoot_IRoot inters
 \end{code}
 
 The sinks of a graph are those vertices that have no outgoing
@@ -245,16 +245,16 @@ generate an interface with one visit computing nothing.
 
 \begin{code}
 makeInterface :: [Vertex] -> Graph -> [Vertex] -> LMH -> [([Vertex],[Vertex])]
-makeInterface sep tds del (l,m,h)
+makeInterface before tds del (l,m,h)
   | m > h = [([],[])]
   | otherwise = let  synSink = filter (isSink tds del) ([m..h] \\ del)
-                     synNoSep = synSink \\ sep
-                     syn | null synNoSep = intersect sep synSink
+                     synNoSep = synSink \\ before
+                     syn | null synNoSep = intersect before synSink
                          | otherwise     = synNoSep
                      del' = del ++ syn
                      inh = filter (isSink tds del') ([l..(m-1)] \\ del')
                      del'' = del' ++ inh
-                     rest = makeInterface sep tds del'' (l,m,h)
+                     rest = makeInterface before tds del'' (l,m,h)
                 in if  null inh && null syn
                        then []
                        else (inh,syn) : rest
@@ -303,8 +303,8 @@ findInstCycles instToSynEdges tdp
 
 \begin{code}
 generateVisits :: Info -> Maybe Profile -> Options -> [Vertex] -> MGraph -> MGraph -> [Edge] -> (CInterfaceMap, CVisitsMap, [Edge], [(String,String)])
-generateVisits info prof opt sep tds tdp dpr
-  = let  inters = makeInterfaces info sep (fmap Map.keys tds)
+generateVisits info prof opt beforeAttrs tds tdp dpr
+  = let  inters = makeInterfaces info beforeAttrs (fmap Map.keys tds)
          inhs = Inh_IRoot{ info_Inh_IRoot = info
                          , options_Inh_IRoot = opt
                          , profileData_Inh_IRoot = prof
@@ -373,7 +373,7 @@ graphDump info opt g | dumpDs opt = [("tds.dot",vizTds info g)]
                      | otherwise  = []
 
 computeSequential :: Info -> Options -> Maybe Profile -> [Vertex] -> [Edge] -> [Edge] -> CycleStatus
-computeSequential info opt prof sepAttrs dpr instToSynEdges
+computeSequential info opt prof beforeAttrs dpr instToSynEdges
   = runST
     (do let bigBounds   = bounds (tdpToTds info)
             smallBounds = bounds (tdsToTdp info)
@@ -398,8 +398,8 @@ computeSequential info opt prof sepAttrs dpr instToSynEdges
                                   let cyc4 = findInstCycles instToSynEdges tdp2
                                   if  not (null cyc4)
                                       then do return (InstCycle (reportLocalCycle tds2 cyc4) graphDumps)              -- then report an error.
-                                      else do let  sep = if sepVisits opt then sepAttrs else []
-                                                   (cim,cvm,edp,dmp) = generateVisits info prof opt sep tds2 tdp2 dpr
+                                      else do let  before = if sepVisits opt then beforeAttrs else []
+                                                   (cim,cvm,edp,dmp) = generateVisits info prof opt before tds2 tdp2 dpr
                                               mapM_ (insertTds info comp) (map (singleStep AttrIndu) edp) -- insert dependencies induced by visit scheduling
                                               tds3 <- freeze tds
                                               let graphDumps = dmp ++ graphDump info opt tds3
