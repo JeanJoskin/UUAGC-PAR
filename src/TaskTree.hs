@@ -95,4 +95,4 @@ flatten = foldTaskTree (const concat,const concat,const (\x -> [x]))
 instance NFData (TaskTree a) where
   rnf (TPar i xs) = i `seq` rnf xs `seq` ()
   rnf (TSeq i xs) = i `seq` rnf xs `seq` ()
-  rnf (TTask i n) = i `seq` n `seq` ()
+  rnf (TTask i n) = i `deepseq` n `seq` ()

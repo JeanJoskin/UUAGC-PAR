@@ -10,7 +10,7 @@ import qualified Data.Set as Set
 import Data.Maybe(fromJust)
 import Data.List(partition)
 import UU.Pretty
-
+import Control.DeepSeq
 
 type Vertex    = Int
 data PathStep  = AttrStep Vertex Vertex
@@ -148,3 +148,6 @@ prettyCRule cr
                                ++ (show (getAttr cr))
       in show (getLhsNt cr) ++ "." ++ show (getCon cr) ++ ", " ++ descr
 
+instance NFData NTAttr where
+  rnf (NTAInh nt i t) = nt `deepseq` i `deepseq` t `deepseq` ()
+  rnf (NTASyn nt i t) = nt `deepseq` i `deepseq` t `deepseq` ()

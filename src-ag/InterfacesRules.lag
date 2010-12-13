@@ -33,6 +33,7 @@ import Data.List (partition,transpose,(\\),nub,intersect, findIndex,sortBy,find,
 import Data.Array ((!),inRange,bounds,assocs,indices)
 import Data.Foldable(toList)
 import qualified Data.IntMap as IntMap
+import Control.DeepSeq
 
 import Control.Monad (forM_,when)
 import Control.Monad.ST
@@ -97,9 +98,9 @@ use |topSort'|.
 ATTR IRoot [ tdp : Graph | | ]
 SEM  IRoot 
   |  IRoot loc.newedges = toList @inters.newedges
-           loc.visitssGraph =  let graph = buildG (0,@inters.v-1) es
+           loc.visitssGraph =  let graph = buildG (0,@inters.v-1) (map swap es)
                                    es = @newedges ++ edges @lhs.tdp
-                               in transposeG graph
+                               in  graph `deepseq` graph
 \end{Code}
 
 As we will need to look up information, we pass |info| down. An
@@ -111,6 +112,7 @@ ATTR Interfaces Interface Segments Segment [ | v : Vertex | ]
 ATTR IRoot Interfaces Interface Segments Segment [ info : Info | | ]
 SEM  IRoot 
   |  IRoot inters.v = snd (bounds @lhs.tdp) + 1
+           inters.info = @lhs.info `deepseq` @lhs.info
 \end{Code}
 
 The actual generation of edges takes place in |Segment|. We group the
@@ -262,12 +264,12 @@ ATTR Interfaces Interface Segments Segment [ | | taskTreeToVisit USE {++} {[]} :
 
 ATTR IRoot Interfaces Interface Segments Segment [ | | taskTreeDumps USE {++} {[]} : {[(String,String)]} ]
 
-ATTR Interfaces Interface Segments Segment [ | | taskTreesX USE {++} {[]} : {[TaskTree Vertex]} ]
+ATTR BEFORE Interfaces Interface Segments Segment [ | | taskTreesX USE {++} {[]} : {[TaskTree Vertex]} ]
 
 
 SEM  Segment
   |  Segment  loc.synOccur = gather @lhs.info (@occurAs isLhs @syn)
-                    loc.tts' = let genF | @lhs.o_datPar = taskTree
+              HEAVY loc.tts' = let genF | @lhs.o_datPar = taskTree
                                         | otherwise     = seqTaskTree
                                in if null @syn
                                   then replicate (length @lhs.cons) emptyTaskTree
