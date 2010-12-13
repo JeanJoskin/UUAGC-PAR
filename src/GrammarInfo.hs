@@ -28,7 +28,7 @@ instance NFData Info where
 
 instance NFData CRule where
   rnf (CRule nm isIn hc nt con fld cnt tp pat rhs def owrt ori use expl mbn hvy) =
-    nm `deepseq` isIn `deepseq` hc `deepseq` nt `deepseq` con `deepseq` fld `deepseq` cnt `deepseq` tp `deepseq` pat `deepseq` rhs `deepseq` def `deepseq` owrt `deepseq` ori `deepseq` use `deepseq` expl `deepseq` mbn `deepseq` hvy `deepseq` ()
+    nm `deepseq` isIn `deepseq` hc `deepseq` nt `deepseq` con `deepseq` fld `deepseq` cnt `deepseq` tp `deepseq` rhs `deepseq` def `deepseq` owrt `deepseq` use `deepseq` expl `deepseq` mbn `deepseq` hvy `deepseq` ()
   rnf (CChildVisit nm nt nr inh syn isl parc) =
     nm `deepseq` nt `deepseq` nr `deepseq` inh `deepseq` syn `deepseq` isl `deepseq` parc `deepseq` ()
 
