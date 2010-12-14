@@ -158,6 +158,9 @@ compile flags input output
 
       putStr . formatErrors $ PrErr.pp_Syn_Errors output6
 
+      when (verbose flags) $
+        mapM_ putStrLn (Pass3.verboseInfo_Syn_Grammar output3)
+
       when (dumpDs flags) $
         mapM_ (uncurry writeFile) prefixedDumps
       

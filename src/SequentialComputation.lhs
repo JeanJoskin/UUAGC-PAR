@@ -225,7 +225,7 @@ makeInterfaces info before tds
          mkSegments = foldr (sem_Segments_Cons . uncurry sem_Segment_Segment) sem_Segments_Nil . interslist
          mkInter ((nt,cons),lmh) = sem_Interface_Interface nt cons (mkSegments lmh)
          inters = foldr (sem_Interfaces_Cons . mkInter) sem_Interfaces_Nil (zip (nonts info) (lmh info))
-     in  trace (show before) $ sem_IRoot_IRoot inters
+     in  sem_IRoot_IRoot inters
 \end{code}
 
 The sinks of a graph are those vertices that have no outgoing
@@ -302,7 +302,7 @@ findInstCycles instToSynEdges tdp
 \section{Tying it together}
 
 \begin{code}
-generateVisits :: Info -> Maybe Profile -> Options -> [Vertex] -> MGraph -> MGraph -> [Edge] -> (CInterfaceMap, CVisitsMap, [Edge], [(String,String)])
+generateVisits :: Info -> Maybe Profile -> Options -> [Vertex] -> MGraph -> MGraph -> [Edge] -> (CInterfaceMap, CVisitsMap, [Edge], [(String,String)], [String])
 generateVisits info prof opt beforeAttrs tds tdp dpr
   = let  inters = makeInterfaces info beforeAttrs (fmap Map.keys tds)
          inhs = Inh_IRoot{ info_Inh_IRoot = info
@@ -312,7 +312,9 @@ generateVisits info prof opt beforeAttrs tds tdp dpr
                          , dpr_Inh_IRoot  = dpr
                          }
          iroot = wrap_IRoot inters inhs
-    in (inters_Syn_IRoot iroot, visits_Syn_IRoot iroot, edp_Syn_IRoot iroot, taskTreeDumps_Syn_IRoot iroot)
+         verboseInfo | datPar opt = ["DatPar: " ++ show (nSparkSpots_Syn_IRoot iroot) ++ " spark-spots."]
+                     | otherwise  = []
+    in (inters_Syn_IRoot iroot, visits_Syn_IRoot iroot, edp_Syn_IRoot iroot, taskTreeDumps_Syn_IRoot iroot, verboseInfo)
 
 reportLocalCycle :: MGraph -> [EdgePath] -> [[Vertex]]
 reportLocalCycle tds cyc
@@ -399,7 +401,7 @@ computeSequential info opt prof beforeAttrs dpr instToSynEdges
                                   if  not (null cyc4)
                                       then do return (InstCycle (reportLocalCycle tds2 cyc4) graphDumps)              -- then report an error.
                                       else do let  before = if sepVisits opt then beforeAttrs else []
-                                                   (cim,cvm,edp,dmp) = generateVisits info prof opt before tds2 tdp2 dpr
+                                                   (cim,cvm,edp,dmp,vi) = generateVisits info prof opt before tds2 tdp2 dpr
                                               mapM_ (insertTds info comp) (map (singleStep AttrIndu) edp) -- insert dependencies induced by visit scheduling
                                               tds3 <- freeze tds
                                               let graphDumps = dmp ++ graphDump info opt tds3
@@ -410,7 +412,7 @@ computeSequential info opt prof beforeAttrs dpr instToSynEdges
                                                           let cyc5 = findInstCycles instToSynEdges tdp3
                                                           if  not (null cyc5)
                                                               then do return (InstCycle (reportLocalCycle tds3 cyc5) graphDumps)     -- then report an error.
-                                                              else do return (CycleFree cim cvm graphDumps)                      -- otherwise we succeed.
+                                                              else do return (CycleFree cim cvm graphDumps vi)                      -- otherwise we succeed.
     )
 \end{code}
 

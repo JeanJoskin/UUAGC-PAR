@@ -48,7 +48,7 @@ type CInterfaceMap = Map NontermIdent CInterface
 type CVisitsMap = Map NontermIdent (Map ConstructorIdent CVisits)
 
 data CycleStatus  
-  = CycleFree     CInterfaceMap CVisitsMap [(String,String)]
+  = CycleFree     CInterfaceMap CVisitsMap [(String,String)] [String]
   | LocalCycle    [Route] [(String,String)]
   | InstCycle     [Route] [(String,String)]
   | DirectCycle   [EdgeRoutes] [(String,String)]

@@ -489,7 +489,7 @@ SEM  Production
 ------------------------------------------------------------------
 -- Invoking sequential computation
 ------------------------------------------------------------------
-ATTR Grammar [ | | graphDumps : {GraphDumps} ]
+ATTR Grammar [ | | verboseInfo : {[String]}  graphDumps : {GraphDumps} ]
 
 SEM Grammar
   | Grammar loc.ruleTable = Array.array (0,@nonts.vcount-1) (toList @nonts.rules)
@@ -517,32 +517,37 @@ SEM Grammar
             loc.beforeVertices = let ntaIsSep = flip elem @beforeAttrs . getNtaNameIdent . snd
                                  in  map fst $ filter ntaIsSep (toList @nonts.ntattrs)
 
-            loc.(cInterfaceMap,cVisitsMap,cyclesErrors,graphDumps) =
+            loc.(cInterfaceMap,cVisitsMap,cyclesErrors,graphDumps,verboseInfo) =
                               case computeSequential @info @lhs.options @lhs.profileData @beforeVertices @directDep (@instDep ++ @aroundDep) of
-                                           CycleFree    cim cvm dmp -> ( cim
-                                                                       , cvm
-                                                                       , []
-                                                                       , dmp
-                                                                       )
+                                           CycleFree    cim cvm dmp vi -> ( cim
+                                                                          , cvm
+                                                                          , []
+                                                                          , dmp
+                                                                          , vi
+                                                                          )
                                            LocalCycle   errs dmp    -> ( error "No interfaces for AG with local cycles"
                                                                       , error "No visit sub-sequences for AG with local cycles"
                                                                       , map (localCycleErr @ruleTable (visit @lhs.options)) errs
                                                                       , dmp
+                                                                      , []
                                                                       )
                                            InstCycle    errs dmp    -> ( error "No interfaces for AG with cycles through insts"
                                                                       , error "No visit sub-sequences for AG with cycles through insts"
                                                                       , map (instCycleErr @ruleTable (visit @lhs.options)) errs
                                                                       , dmp
+                                                                      , []
                                                                       )
                                            DirectCycle  errs dmp    -> ( error "No interfaces for AG with direct cycles"
                                                                       , error "No visit sub-sequences for AG with direct cycles"
                                                                       , directCycleErrs @attrTable @ruleTable (visit @lhs.options) errs
                                                                       , dmp
+                                                                      , []
                                                                       )
                                            InducedCycle cim errs dmp -> ( cim
                                                                         , error "No visit sub-sequences for AG with induced cycles"
                                                                         , inducedCycleErrs @attrTable @ruleTable cim errs
                                                                         , dmp
+                                                                        , []
                                                                         )
             lhs.errors := (if withCycle @lhs.options then Seq.fromList @cyclesErrors else Seq.empty) 
                           Seq.>< @nonts.errors

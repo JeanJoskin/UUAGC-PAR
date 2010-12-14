@@ -297,19 +297,19 @@ SEM  Segment
                                       else []
 
 ATTR Interfaces Interface Segments Segment [ topPars : {[ParProfit]} | | ]
+ATTR IRoot [ | | nSparkSpots : Int ]
 
 SEM IRoot
-  | IRoot inters.topPars = let tasks = concatMap (flatten . snd) @inters.taskTrees
-                               weightMap = mkWeightMap (ruleTable @lhs.info) vertexToVisit vwn tasks
-                               taskTreeToVisit = Map.fromList @inters.taskTreeToVisit
-                               vertexToVisit = Map.fromList @inters.vertexToVisit
-                               taskTrees = Map.fromList @inters.taskTrees
-                               vw1 = visitWeights1 (ruleTable @lhs.info) taskTrees taskTreeToVisit
-                               vwn = (iterate (addVisitWeights visitGraph) vw1) !! 2
-                               visitGraph = visitGr vertexToVisit taskTreeToVisit @inters.vn @inters.taskTrees
-                               topPars = foldr (mergeParProfits . uncurry (parProfits weightMap)) [] @inters.taskTrees
-                               lbl v = show v ++ ": " ++ show (vw1 Map.! v) ++ " / " ++ show (vwn Map.! v)
-                           in  vizG' "vg" lbl visitGraph `seq` trace ("Found " ++ (show (length topPars)) ++ " spark-spots.") topPars
+  | IRoot loc.topPars = let tasks = concatMap (flatten . snd) @inters.taskTrees
+                            weightMap = mkWeightMap (ruleTable @lhs.info) vertexToVisit vwn tasks
+                            taskTreeToVisit = Map.fromList @inters.taskTreeToVisit
+                            vertexToVisit = Map.fromList @inters.vertexToVisit
+                            taskTrees = Map.fromList @inters.taskTrees
+                            vw1 = visitWeights1 (ruleTable @lhs.info) taskTrees taskTreeToVisit
+                            vwn = (iterate (addVisitWeights visitGraph) vw1) !! 2
+                            visitGraph = visitGr vertexToVisit taskTreeToVisit @inters.vn @inters.taskTrees
+                        in  foldr (mergeParProfits . uncurry (parProfits weightMap)) [] @inters.taskTrees
+          lhs.nSparkSpots = length @topPars
 
 {
 mkWeightMap :: Table CRule -> Map Vertex Int -> Map Int Int -> [Vertex] -> Map Vertex Int
