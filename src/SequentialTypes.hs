@@ -59,7 +59,7 @@ getHeavy    (CRule name ii hc nt con field childnt tp pattern rhs defines owrt o
 
 
 isChildVisit :: CRule -> Bool
-isChildVisit (CChildVisit _ _ _ _ _ _ _) = True
+isChildVisit (CChildVisit _ _ _ _ _ _) = True
 isChildVisit _ = False
 
 isLocal = (_LOC==) . getField

@@ -573,7 +573,7 @@ ATTR Child Children [ | | singlevisits USE {++} {[]}: {[CRule]}]
 SEM Child 
   | Child lhs.singlevisits  =  if  @maptolocal
                                    then []
-                                   else [CChildVisit @name (getNtName @tp) 0 @inh @syn True False]
+                                   else [CChildVisit @name (getNtName @tp) 0 @inh @syn True]
 
 -- Now just build the CGrammar
 SEM  Grammar [ | | output : CGrammar ]

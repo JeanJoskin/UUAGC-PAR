@@ -145,7 +145,7 @@ SEM  CRule
            loc.originComment = if  @lhs.o_pretty
                                    then (Comment @origin:)
                                    else id
-           loc.instDecls = [ mkDecl @lhs.o_monadic False (Pattern3 (Alias _INST' inst (Underscore (getPos inst)) []))
+           loc.instDecls = [ mkDecl @lhs.o_monadic (Pattern3 (Alias _INST' inst (Underscore (getPos inst)) []))
                                   ( let (nm,mb) = fromJust $ inst `lookup` @loc.instTypes
                                     in unwrapSem @lhs.o_newtypes (maybe nm id (deforestedNt nm))
                                        $ case mb of
@@ -182,7 +182,7 @@ SEM  CRule
                                              $ v
                                         else v
            loc.decls = if @hasCode
-                       then @originComment ( mkDecl (@lhs.o_monadic && @explicit) False (Pattern3 @pattern.copy) (@loc.addTrace $ @loc.addCostCentre $ @loc.addLinePragma $ (TextExpr @rhs))
+                       then @originComment ( mkDecl (@lhs.o_monadic && @explicit) (Pattern3 @pattern.copy) (@loc.addTrace $ @loc.addCostCentre $ @loc.addLinePragma $ (TextExpr @rhs))
                                                   (Set.fromList [attrname False fld nm | (fld,nm,_) <- Map.elems @defines])
                                                   (Set.fromList [attrname True fld nm | (fld,nm) <- Set.toList @uses])
                                            : @loc.instDecls)
@@ -207,11 +207,11 @@ SEM  CRule
                                  fun | @nr == 0 && Set.member @name @lhs.aroundMap
                                                  = locname @name ++ "_around " ++ funname baseNm 0
                                      | otherwise = funname baseNm @nr
-                             in [ mkDecl @lhs.o_monadic @parCan tuple rhs (Set.fromList lhsVars) (Set.fromList (funname baseNm @nr : rhsVars))]
+                             in [ mkDecl @lhs.o_monadic tuple rhs (Set.fromList lhsVars) (Set.fromList (funname baseNm @nr : rhsVars))]
 
 {
-mkDecl True  _ lhs rhs _ _   = Bind lhs rhs
-mkDecl False parCan lhs rhs s1 s2 = Decl lhs rhs s1 s2 parCan
+mkDecl True lhs rhs _ _   = Bind lhs rhs
+mkDecl False lhs rhs s1 s2 = Decl lhs rhs s1 s2
 
 unwrapSem :: Bool -> NontermIdent -> Expr -> Expr
 unwrapSem False _ e = e
@@ -456,7 +456,7 @@ SEM  CVisit
                                      fun = seqSemname @lhs.prefix @lhs.nt @lhs.con (@lhs.nr+1)
                                 in if @lhs.isLast
                                    then []
-                                   else [ Decl lhs rhs (Set.fromList @nextVisitName) @lhs.nextIntraVars False ]
+                                   else [ Decl lhs rhs (Set.fromList @nextVisitName) @lhs.nextIntraVars ]
             loc.decls = @typeSigs ++ @vss.decls ++ @nextVisitDecl
 --            vss.lastExpr = mkTupleExpr @lhs.o_unbox (null $ Map.keys @inh) $ map (SimpleExpr . lhsname False) (Map.keys @syn) ++ map SimpleExpr @nextVisitName
 --            intra.lastExpr = error "lastExpr: not used here"
@@ -500,7 +500,7 @@ SEM  CVisit
                               wrap = if  @lhs.o_newtypes
                                          then \x -> App (typeName @lhs.nt @lhs.nr) [x] 
                                          else id
-                         in Decl lhs rhs Set.empty Set.empty False
+                         in Decl lhs rhs Set.empty Set.empty
             loc.tsig = TSig @funcname @semType
             loc.semType = let argType (NT tp tps)  r   | tp /= _SELF = typeAppStrs (sdtype tp) tps `Arr` r
                                                        | tp == _SELF = error "GenerateCode: found an intra-type with type SELF, which should have been prevented by CRule.tps"
@@ -670,15 +670,15 @@ freevars additional decls
     allused = Set.unions (Set.fromList additional : map usedvars decls)
     alldefined = Set.unions (map definedvars decls)
   
-    usedvars (Decl _ _ _ uses _) = uses
+    usedvars (Decl _ _ _ uses) = uses
     usedvars _                 = Set.empty
     
-    definedvars (Decl _ _ defs _ _) = defs
+    definedvars (Decl _ _ defs _) = defs
     definedvars _                 = Set.empty
 
 mkBlockLambda :: Bool -> String -> [String] -> [Decl] -> Expr -> Decl
 mkBlockLambda optCase name args decls expr
-  = Decl lhs rhs Set.empty Set.empty False
+  = Decl lhs rhs Set.empty Set.empty
   where
     lhs = Fun name (map SimpleExpr args)
     rhs = mkLet optCase decls expr
@@ -772,7 +772,7 @@ SEM CNonterminal
                                       inhAttrs = Map.toList @inh
                                       synAttrs = Map.toList @syn
                                       dfltAttrs = Map.keys @inhDflt
-                                      dfltDecls = [ Decl (Fun (lhsname True a) []) v Set.empty Set.empty False | (a,v) <- Map.toList @inhDflt ]
+                                      dfltDecls = [ Decl (Fun (lhsname True a) []) v Set.empty Set.empty | (a,v) <- Map.toList @inhDflt ]
                                       inhAttrs' = filter (not . flip elem dfltAttrs . fst) inhAttrs
                                       inhVars = [ SimpleExpr (attrname True _LHS a) | (a,_) <- inhAttrs' ]
                                       synVars = [ SimpleExpr (attrname False _LHS a) | (a,_) <- synAttrs ]
@@ -794,7 +794,7 @@ SEM CNonterminal
                                   in datas ++ [ typeSig
                                               , Decl (Fun wrapNT [varPat, App inhNT inhVars])
                                                     (Let (@inter.wrapDecls ++ dfltDecls) (App synNT synVars))
-                                                    Set.empty Set.empty False
+                                                    Set.empty Set.empty
                                               ]
 
 ATTR CInterface CSegments CSegment [ | | wrapDecls USE {++} {[]}: {Decls} ]
@@ -807,7 +807,7 @@ SEM  CSegment
                                    var = "sem"
                                    sem 0 = var
                                    sem n = var ++ "_" ++ show n
-                               in [ Decl (mkTupleLhs @lhs.o_unbox (null $ Map.keys @inh) lhsVars) (App (sem @lhs.nr) rhs) (Set.fromList lhsVars) (Set.fromList rhsVars) False ]
+                               in [ Decl (mkTupleLhs @lhs.o_unbox (null $ Map.keys @inh) lhsVars) (App (sem @lhs.nr) rhs) (Set.fromList lhsVars) (Set.fromList rhsVars) ]
 
 -------------------------------------------------------------------------------
 -- Errors for missing type signatures. It's an error when one of the
@@ -913,7 +913,7 @@ mkDecls :: DeclsType -> Decls -> Expr -> Expr
 mkDecls DeclsLet  = mkLet False
 mkDecls DeclsCase = mkLet True
 mkDecls DeclsDo   = \decls -> Do (map toBind decls)
-  where toBind (Decl lhs rhs _ _ _) = BindLet lhs rhs
+  where toBind (Decl lhs rhs _ _) = BindLet lhs rhs
         toBind d                  = d
 
 mkLet :: Bool -> Decls -> Expr -> Expr
@@ -928,7 +928,7 @@ boundVars (TupleLhs xs) = xs
 boundVars _ = error "Unexpected type in BoundVars"
 
 oneCase :: Decl -> Expr -> Expr
-oneCase (Decl left rhs _ _ _) exp = Case rhs [CaseAlt left exp]
+oneCase (Decl left rhs _ _) exp = Case rhs [CaseAlt left exp]
 oneCase _                     exp = exp
 
 -- Gives the name of the visit function
@@ -1013,7 +1013,7 @@ SEM CNonterminal
                                                                   _      -> arg
                                                          lhs = Fun (cataname @lhs.prefix @nt) [arg]
                                                          rhs = (App "Prelude.foldr" [cons,nil,rarg])
-                                                     in  [Decl lhs rhs Set.empty Set.empty False]
+                                                     in  [Decl lhs rhs Set.empty Set.empty]
                                                  CommonTypes.Maybe tp ->                                  
                                                      let just    = semname @lhs.prefix @nt (identifier "Just")
                                                          nothing = semname @lhs.prefix @nt (identifier "Nothing" )
@@ -1022,9 +1022,9 @@ SEM CNonterminal
                                                                   NT t _ -> let t' = maybe t id (deforestedNt t)
                                                                             in App (cataname @lhs.prefix t') [arg]
                                                                   _      -> arg
-                                                         lhs a = Fun (cataname @lhs.prefix @nt) [a]                                                        
-                                                     in  [Decl (lhs (App "Prelude.Just" [arg]))     (App just [rarg])    Set.empty Set.empty False
-                                                         ,Decl (lhs (SimpleExpr "Prelude.Nothing")) (SimpleExpr nothing) Set.empty Set.empty False
+                                                         lhs a = Fun (cataname @lhs.prefix @nt) [a]
+                                                     in  [Decl (lhs (App "Prelude.Just" [arg]))     (App just [rarg])    Set.empty Set.empty
+                                                         ,Decl (lhs (SimpleExpr "Prelude.Nothing")) (SimpleExpr nothing) Set.empty Set.empty
                                                          ]
                                                  CommonTypes.Either tp1 tp2 ->                                  
                                                      let left  = semname @lhs.prefix @nt (identifier "Left")
@@ -1038,9 +1038,9 @@ SEM CNonterminal
                                                                    NT t _ -> let t' = maybe t id (deforestedNt t)
                                                                              in App (cataname @lhs.prefix t') [arg]
                                                                    _      -> arg
-                                                         lhs a = Fun (cataname @lhs.prefix @nt) [a]                                                        
-                                                     in  [Decl (lhs (App "Prelude.Left"  [arg]))     (App left  [rarg0])    Set.empty Set.empty False
-                                                         ,Decl (lhs (App "Prelude.Right" [arg]))     (App right [rarg1])    Set.empty Set.empty False
+                                                         lhs a = Fun (cataname @lhs.prefix @nt) [a]
+                                                     in  [Decl (lhs (App "Prelude.Left"  [arg]))     (App left  [rarg0])    Set.empty Set.empty
+                                                         ,Decl (lhs (App "Prelude.Right" [arg]))     (App right [rarg1])    Set.empty Set.empty
                                                          ]
                                                  CommonTypes.Map _ tp ->
                                                    let entry = SimpleExpr (semname @lhs.prefix @nt (identifier "Entry"))
@@ -1052,7 +1052,7 @@ SEM CNonterminal
                                                                  _      -> arg
                                                        lhs   = Fun (cataname @lhs.prefix @nt) [arg]
                                                        rhs   = App "Map.foldWithKey" [entry,nil,rarg]
-                                                   in [Decl lhs rhs Set.empty Set.empty False]
+                                                   in [Decl lhs rhs Set.empty Set.empty]
                                                  CommonTypes.IntMap tp ->
                                                    let entry = SimpleExpr (semname @lhs.prefix @nt (identifier "Entry"))
                                                        nil   = SimpleExpr (semname @lhs.prefix @nt (identifier "Nil"))
@@ -1063,7 +1063,7 @@ SEM CNonterminal
                                                                  _      -> arg
                                                        lhs   = Fun (cataname @lhs.prefix @nt) [arg]
                                                        rhs   = App "IntMap.foldWithKey" [entry,nil,rarg]
-                                                   in [Decl lhs rhs Set.empty Set.empty False]
+                                                   in [Decl lhs rhs Set.empty Set.empty]
                                                  CommonTypes.Tuple tps ->   
                                                      let con  = semname @lhs.prefix @nt (identifier "Tuple")
                                                          tps' = [ (SimpleExpr (getName x),y) | (x,y) <- tps]
@@ -1075,7 +1075,7 @@ SEM CNonterminal
                                                                   
                                                          lhs = Fun (cataname @lhs.prefix @nt) [TupleExpr (map fst tps')]
                                                          rhs = App con rargs
-                                                     in  [Decl lhs rhs Set.empty Set.empty False]
+                                                     in  [Decl lhs rhs Set.empty Set.empty]
                                in  Comment "cata" :
                                    (if @lhs.o_sig then [tSig] else []) ++
                                    maybe @prods.cataAlts special (lookup @nt @lhs.typeSyns)
@@ -1098,7 +1098,7 @@ SEM CProduction
                                                             in App (cataname @lhs.prefix tp')
                                                                    [SimpleExpr (locname nm)]
                                   argument (nm, _,_)    = SimpleExpr (locname nm)
-                               in Decl lhs rhs Set.empty Set.empty False
+                               in Decl lhs rhs Set.empty Set.empty
 
 
 -------------------------------------------------------------------------------

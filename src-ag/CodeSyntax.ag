@@ -88,7 +88,6 @@ DATA  CRule
                    inh     :  Attributes
                    syn     :  Attributes
                    isLast  :  Bool  -- indicates whether this is the last visit to this child
-                   parCan  :  Bool
 
 SET AllCodeSyntax
   = CGrammar

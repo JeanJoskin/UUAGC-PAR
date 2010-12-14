@@ -60,7 +60,6 @@ DATA Decl     | Decl             left  : Lhs
                                  rhs   : Expr
                                  binds : {Set String}  -- set of variable names bound by the left-hand side
                                  uses  : {Set String}  -- set of variable names used by the right-hand side
-                                 par   : {Bool}
               | Bind             left  : Lhs
                                  rhs   : Expr
               | BindLet          left  : Lhs

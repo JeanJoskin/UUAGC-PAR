@@ -3,8 +3,8 @@ PRAGMA strictdata
 PRAGMA optimize
 PRAGMA bangpats
 PRAGMA strictwrap
-PRAGMA datpar
 PRAGMA sepvisits
+PRAGMA datpar
 
 INCLUDE "Interfaces.ag"
 
@@ -271,10 +271,10 @@ SEM  Segment
   |  Segment  loc.synOccur = gather @lhs.info (@occurAs isLhs @syn)
               HEAVY loc.tts' = let genF | @lhs.o_datPar = taskTree
                                         | otherwise     = seqTaskTree
-                               in if null @syn
-                                  then replicate (length @lhs.cons) emptyTaskTree
-                                  else map (genF @lhs.vssGraph) @synOccur
-              lhs.taskTreesX = @loc.tts'
+                               in  if null @syn
+                                   then replicate (length @lhs.cons) emptyTaskTree
+                                   else map (genF @lhs.vssGraph) @synOccur
+              lhs.taskTreesX = @loc.tts' `deepseq` @loc.tts'
               loc.tts = let hasCode v | inRange (bounds (ruleTable @lhs.info)) v = getHasCode (ruleTable @lhs.info ! v)
                                       | otherwise = True
                             taskFilter v = hasCode v && notElem v @lhs.prev
@@ -578,55 +578,9 @@ cRuleTree (TPar i xs) = CTPar (map cRuleTree xs)
 cRuleTree (TSeq i xs) = CTSeq (map cRuleTree xs)
 cRuleTree (TTask i t) = CTRule t
 
-type AtrrRefs = Set (Identifier,Identifier)
-
-prettyVisit :: Info -> (Map Vertex ChildVisit) -> Vertex -> String
-prettyVisit info visitDescr v = (show v) ++ ": " ++ case Map.lookup v visitDescr of
-                                  Nothing                         -> let cr = ruleTable info ! v
-                                                                       in show (getDefines cr)
-                                  Just (ChildVisit name nt n _ _) -> (getName name) ++ "." ++ (getName nt) ++ " (" ++ (show n) ++ ")"
-
-ruleConsumes :: CRule -> AtrrRefs
-ruleConsumes (CRule _ _ _ _ _ _ _ _ _ _ _ _ _ uses _ _ _) = uses
-ruleConsumes (CChildVisit child _ _ inh _ _ _) = foldr (\a -> Set.insert (child,a)) Set.empty . Map.keys $ inh
-
-ruleProduces :: CRule -> AtrrRefs
-ruleProduces (CRule _ _ _ _ _ _ _ _ _ _ defines _ _ _ _ _ _) = foldr (\(c,a,t) -> Set.insert (c,a)) Set.empty . Map.elems $ defines
-ruleProduces (CChildVisit child _ _ _ syn _ _) = foldr (\a -> Set.insert (child,a)) Set.empty . Map.keys $ syn
-
-countChildVisits :: [CRule] -> Int
-countChildVisits = foldr (\x -> if isChildVisit x then (1 +) else id) 0
-
-markPCandidates :: [[CRule]] -> [[CRule]]
-markPCandidates [] = []
-markPCandidates (xs:xss) = let nCv = countChildVisits xs
-                               mrk _ [] = []
-                               mrk n (x:xs) = case (x) of
-                                                (CChildVisit name nt nr inh syn isLast _) ->
-                                                  (if n > 1 then
-                                                    CChildVisit name nt nr inh syn isLast True
-                                                  else
-                                                    x)
-                                                  : mrk (n-1) xs
-                                                _ -> x : mrk n xs
-                           in mrk nCv xs : markPCandidates xss
-
-mkPGroups :: [CRule] -> [[CRule]]
-mkPGroups = mkPGroups' Set.empty []
-
-mkPGroups' :: AtrrRefs -> [CRule] -> [CRule] -> [[CRule]]
-mkPGroups' _ cs [] = (reverse cs) : []
-mkPGroups' def cs (x:xs) | cons `Set.isSubsetOf` def = (reverse cs) : mkPGroups' Set.empty [x] xs
-                         | otherwise                 = mkPGroups' def' (x:cs) xs
-  where
-    def' | isChildVisit x = Set.union def prod
-         | otherwise      = def
-    cons = ruleConsumes x
-    prod = ruleProduces x
-
 ccv :: Identifier -> NontermIdent -> Int -> CInterfaceMap -> CRule
 ccv name nt n table
-  =  CChildVisit name nt n inh syn last False
+  =  CChildVisit name nt n inh syn last
      where  CInterface segs = Map.findWithDefault (error ("InterfacesRules::ccv::interfaces not in table for nt: " ++ show nt)) nt table
             (seg:remain) = drop n segs
             CSegment inh syn = seg           
