@@ -1,3 +1,4 @@
+-- From: Prof2Dot / http://hackage.haskell.org/package/prof2dot
 --
 -- ParseProfile.hs
 --
