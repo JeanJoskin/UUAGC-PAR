@@ -315,7 +315,11 @@ SEM IRoot
           lhs.nSparkSpots = length @topPars
 
 {
-mkWeightMap :: Map Vertex Int -> Map Vertex Int -> Map Int Int -> [Vertex] -> Map Vertex Int
+type TagWeights = Map String Int
+type TaskWeights = Map Vertex Int
+type VisitWeights = Map Int Int
+
+mkWeightMap :: TaskWeights -> Map Vertex Int -> VisitWeights -> [Vertex] -> TaskWeights
 mkWeightMap taskW vertexToVisit visitW ts =
     let weight t  | Map.member t vertexToVisit = (t,visitW Map.! (vertexToVisit Map.! t))
                   | otherwise                  = (t,taskW Map.! t)
@@ -328,16 +332,16 @@ visitGr vertexToVisit taskTreeToVisit nv tts =
         ttsDeps = nub $ concatMap ttDeps tts
     in  buildG (0,nv - 1) ttsDeps
 
-addVisitWeights :: Graph -> Map Int Int -> Map Int Int
+addVisitWeights :: Graph -> VisitWeights -> VisitWeights
 addVisitWeights g m = let ws = map (\v -> (m Map.! v, v)) (vertices g)
                       in  foldr (uncurry $ addVisitWeight g []) m ws
 
-addVisitWeight :: Graph -> [Int] -> Int -> Int -> Map Int Int -> Map Int Int
+addVisitWeight :: Graph -> [Int] -> Int -> Int -> VisitWeights -> VisitWeights
 addVisitWeight g xcl w v m | elem v xcl = m
                            | otherwise  = let m' = Map.alter (\(Just x) -> Just $ x + w) v m
                                           in  foldr (addVisitWeight g (v:xcl) w) m' (g ! v)
 
-visitWeights1 :: Map Vertex Int -> Map Int (TaskTree Vertex) -> Map Int Int -> Map Int Int
+visitWeights1 :: TaskWeights -> Map Int (TaskTree Vertex) -> Map Int Int -> VisitWeights
 visitWeights1 taskWeights tts taskTreeToVisit =
   let visitToTaskTrees = revMap taskTreeToVisit
       visits = Map.keys visitToTaskTrees
@@ -359,30 +363,29 @@ mean :: [Int] -> Int
 mean [] = 0
 mean xs = sum xs `div` length xs
 
-taskTreeWeight1 :: Map Vertex Int -> TaskTree Vertex -> Int
+taskTreeWeight1 :: TaskWeights -> TaskTree Vertex -> Int
 taskTreeWeight1 taskWeights tt =
     let tasks = flatten tt
     in  sum $ map (\t -> Map.findWithDefault 0 t taskWeights) tasks
 
-annotTaskWeight :: Table CRule -> Map Vertex Int
+annotTaskWeight :: Table CRule -> TaskWeights
 annotTaskWeight ruleTable  =
     let w r | getHeavy r = 10 
             | otherwise  = 0
     in  Map.fromList $ map (\(v,r) -> (v,w r)) (assocs ruleTable)
 
-tagWeights :: Profile -> Map String Int
+tagWeights :: Profile -> TagWeights
 tagWeights p = let g = profileGraph p
-               in  Map.fromList $ map (nodeToTagWeight g) (IntMap.elems g)
+               in  Map.fromList $ map nodeToTagWeight (IntMap.elems g)
 
-nodeToTagWeight :: ProfileGraph -> Node -> (String,Int)
-nodeToTagWeight g n = let nm p = nodeName n ++ " > " ++ nodeName (g IntMap.! (parentNodeNumber p))
-                      in  (nodeName n,mean $ map (\p -> trace (nm p) $ fromIntegral (ticks p)) (parentNodes n))
+nodeToTagWeight :: Node -> (String,Int)
+nodeToTagWeight n = (nodeName n,mean $ map (fromIntegral . ticks) (parentNodes n))
 
-profileTaskWeight :: Profile -> Table CRule -> Map Vertex Int
+profileTaskWeight :: Profile -> Table CRule -> TaskWeights
 profileTaskWeight profile ruleTable =
   let tw = tagWeights profile
       w r = Map.findWithDefault (-1) (getTag r) tw
-  in  trace (show tw) $ Map.fromList $ map (\(v,r) -> (v,w r)) (assocs ruleTable)
+  in  trace (show (Map.filter (>2) tw)) $ Map.fromList $ map (\(v,r) -> (v,w r)) (assocs ruleTable)
 }
 
 ATTR Interfaces Interface [  | | conss USE {++} {[]} : {[(NontermIdent,[ConstructorIdent])]} ]
