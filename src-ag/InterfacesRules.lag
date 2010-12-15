@@ -28,7 +28,7 @@ import qualified Data.Set as Set
 import Data.Set(Set)
 import Data.Tree(Tree(Node))
 import Data.Graph(Graph, dfs, edges, vertices, buildG, transposeG, Forest (..), Bounds, topSort)
-import Data.Maybe (fromJust,mapMaybe)
+import Data.Maybe (fromJust,mapMaybe,isJust)
 import Data.List (partition,transpose,(\\),nub,intersect, findIndex,sortBy,find,union,intersperse)
 import Data.Array ((!),inRange,bounds,assocs,indices)
 import Data.Foldable(toList)
@@ -297,12 +297,15 @@ SEM  Segment
                                       else []
 
 ATTR Interfaces Interface Segments Segment [ topPars : {[ParProfit]} | | ]
-ATTR IRoot [ | | nSparkSpots : Int ]
+ATTR IRoot [ | | verboseInfo : {[String]} ]
 
 SEM IRoot
-  | IRoot loc.topPars = let tasks = concatMap (flatten . snd) @inters.taskTrees
+  | IRoot loc.constCentreWeights = case @lhs.profileData of
+                                     (Just p) -> costCentreWeights p
+                                     _        -> Map.empty
+          loc.topPars = let tasks = concatMap (flatten . snd) @inters.taskTrees
                             costFun = case @lhs.profileData of
-                                        (Just p) -> profileTaskWeight p (ruleTable @lhs.info)
+                                        (Just p) -> profileTaskWeight @constCentreWeights (ruleTable @lhs.info)
                                         _        -> annotTaskWeight (ruleTable @lhs.info)
                             weightMap = mkWeightMap costFun vertexToVisit vwn tasks
                             taskTreeToVisit = Map.fromList @inters.taskTreeToVisit
@@ -312,10 +315,11 @@ SEM IRoot
                             vwn = (iterate (addVisitWeights visitGraph) vw1) !! 2
                             visitGraph = visitGr vertexToVisit taskTreeToVisit @inters.vn @inters.taskTrees
                         in  foldr (mergeParProfits . uncurry (parProfits weightMap)) [] @inters.taskTrees
-          lhs.nSparkSpots = length @topPars
+          lhs.verboseInfo = option (datPar @lhs.options) ("DatPar: " ++ show (length @topPars) ++ " spark-spots.")
+                            ++ option (isJust @lhs.profileData) ("Cost centre weights: " ++ (show $ Map.filter (>2) @constCentreWeights))
 
 {
-type TagWeights = Map String Int
+type CostCentreWeights = Map String Int
 type TaskWeights = Map Vertex Int
 type VisitWeights = Map Int Int
 
@@ -374,18 +378,21 @@ annotTaskWeight ruleTable  =
             | otherwise  = 0
     in  Map.fromList $ map (\(v,r) -> (v,w r)) (assocs ruleTable)
 
-tagWeights :: Profile -> TagWeights
-tagWeights p = let g = profileGraph p
-               in  Map.fromList $ map nodeToTagWeight (IntMap.elems g)
+costCentreWeights :: Profile -> CostCentreWeights
+costCentreWeights p = let g = profileGraph p
+                      in  Map.fromList $ map nodeToTagWeight (IntMap.elems g)
 
 nodeToTagWeight :: Node -> (String,Int)
 nodeToTagWeight n = (nodeName n,mean $ map (fromIntegral . ticks) (parentNodes n))
 
-profileTaskWeight :: Profile -> Table CRule -> TaskWeights
-profileTaskWeight profile ruleTable =
-  let tw = tagWeights profile
-      w r = Map.findWithDefault (-1) (getTag r) tw
-  in  trace (show (Map.filter (>2) tw)) $ Map.fromList $ map (\(v,r) -> (v,w r)) (assocs ruleTable)
+profileTaskWeight :: CostCentreWeights -> Table CRule -> TaskWeights
+profileTaskWeight ccw ruleTable =
+  let w r = Map.findWithDefault (-1) (getTag r) ccw
+  in  Map.fromList $ map (\(v,r) -> (v,w r)) (assocs ruleTable)
+
+option :: Bool -> a -> [a]
+option True x = [x]
+option False _ = trace "No" []
 }
 
 ATTR Interfaces Interface [  | | conss USE {++} {[]} : {[(NontermIdent,[ConstructorIdent])]} ]

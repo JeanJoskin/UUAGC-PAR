@@ -312,9 +312,7 @@ generateVisits info prof opt beforeAttrs tds tdp dpr
                          , dpr_Inh_IRoot  = dpr
                          }
          iroot = wrap_IRoot inters inhs
-         verboseInfo | datPar opt = ["DatPar: " ++ show (nSparkSpots_Syn_IRoot iroot) ++ " spark-spots."]
-                     | otherwise  = []
-    in (inters_Syn_IRoot iroot, visits_Syn_IRoot iroot, edp_Syn_IRoot iroot, taskTreeDumps_Syn_IRoot iroot, verboseInfo)
+    in (inters_Syn_IRoot iroot, visits_Syn_IRoot iroot, edp_Syn_IRoot iroot, taskTreeDumps_Syn_IRoot iroot, verboseInfo_Syn_IRoot iroot)
 
 reportLocalCycle :: MGraph -> [EdgePath] -> [[Vertex]]
 reportLocalCycle tds cyc
