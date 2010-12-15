@@ -356,6 +356,7 @@ revMap m = foldr (\(a,b) -> Map.alter (ins a) b) Map.empty (Map.assocs m)
     ins x Nothing   = Just [x]
 
 mean :: [Int] -> Int
+mean [] = 0
 mean xs = sum xs `div` length xs
 
 taskTreeWeight1 :: Map Vertex Int -> TaskTree Vertex -> Int
@@ -371,16 +372,17 @@ annotTaskWeight ruleTable  =
 
 tagWeights :: Profile -> Map String Int
 tagWeights p = let g = profileGraph p
-               in  Map.fromList $ map (nodeToTagWeight) (IntMap.elems g)
+               in  Map.fromList $ map (nodeToTagWeight g) (IntMap.elems g)
 
-nodeToTagWeight :: Node -> (String,Int)
-nodeToTagWeight n = (nodeName n,foldl (\t c -> t + fromIntegral (ticks c)) 0 (parentNodes n))
+nodeToTagWeight :: ProfileGraph -> Node -> (String,Int)
+nodeToTagWeight g n = let nm p = nodeName n ++ " > " ++ nodeName (g IntMap.! (parentNodeNumber p))
+                      in  (nodeName n,mean $ map (\p -> trace (nm p) $ fromIntegral (ticks p)) (parentNodes n))
 
 profileTaskWeight :: Profile -> Table CRule -> Map Vertex Int
 profileTaskWeight profile ruleTable =
   let tw = tagWeights profile
-      w r = Map.findWithDefault 0 (getTag r) tw
-  in  Map.fromList $ map (\(v,r) -> (v,w r)) (assocs ruleTable)
+      w r = Map.findWithDefault (-1) (getTag r) tw
+  in  trace (show tw) $ Map.fromList $ map (\(v,r) -> (v,w r)) (assocs ruleTable)
 }
 
 ATTR Interfaces Interface [  | | conss USE {++} {[]} : {[(NontermIdent,[ConstructorIdent])]} ]
