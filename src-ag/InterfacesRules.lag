@@ -627,6 +627,7 @@ interfaces generate.
 ATTR Interfaces Interface Segments Segment [ | | edp USE {Seq.><} {Seq.empty} : {Seq Edge} ]
 SEM  Segment
   |  Segment lhs.edp = Seq.fromList [(a,a') | a <- (@inh ++ @syn), a' <- @lhs.nextAttr]
+                         Seq.>< Seq.fromList [(i,s) | i <- @inh, s <- @syn]
 SEM  IRoot [ | | edp : {[Edge]} ]
   |  IRoot  lhs.edp = toList @inters.edp
 SEM  Segment  [ nextAttr : {[Vertex]} | | attr : {[Vertex]} ]
