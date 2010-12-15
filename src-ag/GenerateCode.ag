@@ -44,7 +44,7 @@ ATTR CNonterminals CNonterminal
      CVisits CVisit
      Sequence CRuleTree CRuleTrees CRule
      CInterface CSegments CSegment
-       [ o_unbox,o_sig,o_sem,o_newtypes,o_case,o_pretty,o_rename,o_cata,o_strictwrap,o_splitsems,o_traces,o_costcentre,o_linePragmas,o_monadic,o_datPar : Bool
+       [ o_unbox,o_sig,o_sem,o_newtypes,o_case,o_pretty,o_rename,o_cata,o_strictwrap,o_splitsems,o_traces,o_costcentre,o_linePragmas,o_monadic,o_datPar,o_topSem : Bool
          o_data : {Maybe Bool}
          prefix : String
        | | ]
@@ -66,6 +66,7 @@ SEM CGrammar [ options : Options | | ]
                      .o_linePragmas = genLinePragmas @lhs.options
                      .o_monadic     = monadic        @lhs.options
                      .o_datPar      = datPar         @lhs.options
+                     .o_topSem      = topSem         @lhs.options
 
 ATTR CNonterminals CNonterminal CProductions CProduction CVisits CVisit [ allPragmas : PragmaMap | | ]
 
@@ -430,12 +431,15 @@ SEM  CRule
 -- Each visit has its semantic function
 -------------------------------------------------------------------------------
 
+ATTR CVisits [ | | allDecls : {Decls} ]
 ATTR CVisits [ | | decls : {Decls} ]
 ATTR CVisit [ | decls : {Decls} | ]
 SEM CVisits
   | Nil   lhs.decls = []
+          lhs.allDecls = []
   | Cons  lhs.decls = @hd.decls
           hd.decls  = @tl.decls
+          lhs.allDecls = @hd.decls ++ @tl.allDecls
 
 -- Note: lhs.decls are the decls related to the next visit function. We pass it
 -- chained from right to left in order to build the next visit function inside
@@ -449,8 +453,8 @@ SEM  CVisit
             loc.funcname = seqSemname @lhs.prefix @lhs.nt @lhs.con @lhs.nr
             loc.nextVisitName = if @lhs.isLast then [] else [visitname @lhs.prefix @lhs.nt (@lhs.nr+1)]
             loc.nextVisitDecl = let  lhs = TupleLhs @nextVisitName
-                                     -- rhs = App fun @lhs.nextIntra
-                                     rhs = Let @lhs.decls (SimpleExpr fun)
+                                     rhs | @lhs.o_topSem = App fun @lhs.nextIntra
+                                         | otherwise = Let @lhs.decls (SimpleExpr fun)
                                      fun = seqSemname @lhs.prefix @lhs.nt @lhs.con (@lhs.nr+1)
                                 in if @lhs.isLast
                                    then []
@@ -468,7 +472,8 @@ SEM  CVisit
             
             loc.params = map getName $ Map.findWithDefault [] @lhs.nt @lhs.paramMap
             loc.semFun = let  lhs = Fun @funcname lhs_args
-                              lhs_args = if @lhs.nr == 0 then map field @loc.firstOrderOrig else [] -- @intra.exprs
+                              lhs_args = if @lhs.nr == 0 then map field @loc.firstOrderOrig else
+                                           (if @lhs.o_topSem then @intra.exprs else [])
 
                               field (name,NT tp tps,_) = let unwrap | @lhs.o_newtypes = \x -> App (sdtype tp) [x]
                                                                     | otherwise       = id
@@ -506,11 +511,12 @@ SEM  CVisit
 
                               evalTp | null @loc.params = id
                                      | otherwise        = idEvalType
-                              
+                              intraTps | @lhs.o_topSem = @intra.tps
+                                       | otherwise = []
                           in appContext @lhs.contextMap @lhs.nt $ evalTp $
                              if  @lhs.nr == 0  
                                  then foldr argType (typeAppStrs (sdtype   @lhs.nt        ) @loc.params) (map (\(_,t,_) -> t) @loc.firstOrderOrig)
-                                 else foldr argType (typeAppStrs (typeName @lhs.nt @lhs.nr) @loc.params) [] -- @intra.tps
+                                 else foldr argType (typeAppStrs (typeName @lhs.nt @lhs.nr) @loc.params) intraTps
             lhs.decls =  ( if  @lhs.with_sig 
                            then [@tsig, @semFun]
                            else [@semFun]
@@ -884,6 +890,9 @@ makeLocalComment width what  name tp = let  x = getName name
 ATTR CNonterminals CNonterminal    [ | | chunks USE {++} {[]} : {Chunks} ]
 ATTR CProductions CProduction  [ | | decls USE {++} {[]} : {Decls} ]
 ATTR CGrammar [ | | output : Program ]
+
+SEM CProduction
+  | CProduction lhs.decls = if @lhs.o_topSem then @visits.allDecls else @visits.decls
 
 SEM CGrammar
   | CGrammar    lhs.output = Program @nonts.chunks

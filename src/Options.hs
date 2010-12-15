@@ -66,6 +66,7 @@ options     =  [ Option ['m']     []                (NoArg (moduleOpt Nothing)) 
                , Option []        ["useprofile"]    (ReqArg useProfileOpt "profile file") "Use time profile for scheduling (use -px format)"
                , Option []        ["sepvisits"]    (NoArg sepVisitsOpt) "Handles attributes annotated with SEP in separate visits"
                , Option []        ["dumpds"]    (NoArg dumpDsOpt) "Dumps dependencies of symbols"
+               , Option []        ["topsem"]    (NoArg topSemOpt) "Splits visits into separate top-level functions"
                ]
 
 allc = "dcfsprm"
@@ -129,6 +130,7 @@ data Options = Options{ moduleName :: ModuleHeader
                       , useProfile :: Maybe String
                       , sepVisits :: Bool
                       , dumpDs :: Bool
+                      , topSem :: Bool
                       } deriving Show
 noOptions = Options { moduleName    = NoName
                     , dataTypes     = False
@@ -189,6 +191,7 @@ noOptions = Options { moduleName    = NoName
                     , useProfile      = Nothing
                     , sepVisits       = False
                     , dumpDs          = False
+                    , topSem          = False
                     }
 
 
@@ -250,6 +253,7 @@ dumpSchedGraphsOpt opts = opts { dumpSchedGraphs = True }
 useProfileOpt nm opts = opts { useProfile = Just nm }
 sepVisitsOpt opts = opts { sepVisits = True }
 dumpDsOpt opts = opts { dumpDs = True }
+topSemOpt opts = opts { topSem = True }
 
 outputOpt  file  opts = opts{outputFiles  = file : outputFiles opts}            
 searchPathOpt  path  opts = opts{searchPath  = extract path ++ searchPath opts}            
