@@ -170,9 +170,8 @@ SEM  CRule
            loc.addTrace = \v -> if @lhs.o_traces
                                 then Trace @loc.traceDescr v
                                 else v
-           loc.costCentreDescr = show @nt ++ ":" ++ show @con ++ ":" ++ @loc.patDescr
            loc.addCostCentre = \v -> if @lhs.o_costcentre
-                                     then PragmaExpr True False ("SCC \"" ++ @loc.costCentreDescr ++ "\"") v
+                                     then PragmaExpr True False ("SCC \"" ++ @tag ++ "\"") v
                                      else v
            loc.addLinePragma = \v -> let p = getPos @name
                                          hasPos = line p > 0 && column p >= 0 && not (null (file p))
@@ -187,9 +186,8 @@ SEM  CRule
                                                   (Set.fromList [attrname True fld nm | (fld,nm) <- Set.toList @uses])
                                            : @loc.instDecls)
                        else @loc.instDecls
-  |  CChildVisit loc.costCentreDescr = show @lhs.nt ++ ":" ++ show @lhs.con ++ ":" ++ show @name ++ ":" ++ show @nt ++ ":" ++ show @nr
-                 loc.addCostCentre = \v -> if @lhs.o_costcentre
-                                           then PragmaExpr True False ("SCC \"" ++ @loc.costCentreDescr ++ "\"") v
+  |  CChildVisit loc.addCostCentre = \v -> if @lhs.o_costcentre
+                                           then PragmaExpr True False ("SCC \"" ++ @tag ++ "\"") v
                                            else v
                  loc.decls = let lhsVars =  map (attrname True @name) (Map.keys @syn)
                                                    ++ if @isLast then [] else [unwrap ++ funname @name (@nr+1)]

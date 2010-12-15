@@ -8,9 +8,10 @@ import qualified Data.Map as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Maybe(fromJust)
-import Data.List(partition)
+import Data.List(partition,intersperse)
 import UU.Pretty
 import Control.DeepSeq
+import Patterns (Pattern (..))
 
 type Vertex    = Int
 data PathStep  = AttrStep Vertex Vertex
@@ -44,22 +45,23 @@ getNtaNameIdent (NTASyn nt name tp) = (nt,name)
 getNtaIdent (NTAInh nt name tp) = name
 getNtaIdent (NTASyn nt name tp) = name
 
-getAttr     (CRule name ii hc nt con field childnt tp pattern rhs defines owrt origin uses expl _ _) = name
-getIsIn     (CRule name ii hc nt con field childnt tp pattern rhs defines owrt origin uses expl _ _) = ii
-getHasCode  (CRule name ii hc nt con field childnt tp pattern rhs defines owrt origin uses expl _ _) = hc
-getLhsNt    (CRule name ii hc nt con field childnt tp pattern rhs defines owrt origin uses expl _ _) = nt
-getCon      (CRule name ii hc nt con field childnt tp pattern rhs defines owrt origin uses expl _ _) = con
-getField    (CRule name ii hc nt con field childnt tp pattern rhs defines owrt origin uses expl _ _) = field
-getRhsNt    (CRule name ii hc nt con field childnt tp pattern rhs defines owrt origin uses expl _ _) = childnt
-getType     (CRule name ii hc nt con field childnt tp pattern rhs defines owrt origin uses expl _ _) = tp
-getDefines  (CRule name ii hc nt con field childnt tp pattern rhs defines owrt origin uses expl _ _) = defines
-getUses     (CRule name ii hc nt con field childnt tp pattern rhs defines owrt origin uses expl _ _) = uses
-getExplicit (CRule name ii hc nt con field childnt tp pattern rhs defines owrt origin uses expl _ _) = expl
-getHeavy    (CRule name ii hc nt con field childnt tp pattern rhs defines owrt origin uses expl _ heavy) = heavy
+getAttr     (CRule name ii hc nt con field childnt tp pattern rhs defines owrt origin uses expl _ _ _) = name
+getIsIn     (CRule name ii hc nt con field childnt tp pattern rhs defines owrt origin uses expl _ _ _) = ii
+getHasCode  (CRule name ii hc nt con field childnt tp pattern rhs defines owrt origin uses expl _ _ _) = hc
+getLhsNt    (CRule name ii hc nt con field childnt tp pattern rhs defines owrt origin uses expl _ _ _) = nt
+getCon      (CRule name ii hc nt con field childnt tp pattern rhs defines owrt origin uses expl _ _ _) = con
+getField    (CRule name ii hc nt con field childnt tp pattern rhs defines owrt origin uses expl _ _ _) = field
+getRhsNt    (CRule name ii hc nt con field childnt tp pattern rhs defines owrt origin uses expl _ _ _) = childnt
+getType     (CRule name ii hc nt con field childnt tp pattern rhs defines owrt origin uses expl _ _ _) = tp
+getDefines  (CRule name ii hc nt con field childnt tp pattern rhs defines owrt origin uses expl _ _ _) = defines
+getUses     (CRule name ii hc nt con field childnt tp pattern rhs defines owrt origin uses expl _ _ _) = uses
+getExplicit (CRule name ii hc nt con field childnt tp pattern rhs defines owrt origin uses expl _ _ _) = expl
+getHeavy    (CRule name ii hc nt con field childnt tp pattern rhs defines owrt origin uses expl _ heavy _) = heavy
+getTag    (CRule name ii hc nt con field childnt tp pattern rhs defines owrt origin uses expl _ _ tag) = tag
 
 
 isChildVisit :: CRule -> Bool
-isChildVisit (CChildVisit _ _ _ _ _ _) = True
+isChildVisit (CChildVisit _ _ _ _ _ _ _) = True
 isChildVisit _ = False
 
 isLocal = (_LOC==) . getField
@@ -89,14 +91,14 @@ ntattr cr  | isLocal cr =  Nothing
                            in Just (at (getNt cr) (getAttr cr) (fromJust (getType cr)))
 
 cRuleLhsInh :: Identifier -> NontermIdent -> ConstructorIdent -> Type -> CRule
-cRuleLhsInh attr nt con tp = CRule attr True False nt con _LHS Nothing (Just tp) (error "cRuleLhsInh") [] Map.empty False "" Set.empty False Nothing False
+cRuleLhsInh attr nt con tp = CRule attr True False nt con _LHS Nothing (Just tp) (error "cRuleLhsInh") [] Map.empty False "" Set.empty False Nothing False (cRuleTag True nt con undefined)
 cRuleTerminal :: Identifier -> NontermIdent -> ConstructorIdent -> Type -> CRule
-cRuleTerminal attr nt con tp = CRule attr True False nt con _LOC Nothing (Just tp) (error ("cRuleTerminal: " ++ show (attr, nt, con, tp))) [] Map.empty False "" Set.empty False Nothing False
+cRuleTerminal attr nt con tp = CRule attr True False nt con _LOC Nothing (Just tp) (error ("cRuleTerminal: " ++ show (attr, nt, con, tp))) [] Map.empty False "" Set.empty False Nothing False (cRuleTag True nt con undefined)
 cRuleRhsSyn :: Identifier -> NontermIdent -> ConstructorIdent -> Type -> Identifier -> NontermIdent -> CRule
-cRuleRhsSyn attr nt con tp field childnt = CRule attr True False nt con field (Just childnt) (Just tp) (error ("cRuleRhsSyn: " ++ show (attr, nt, con, tp, field))) [] Map.empty False "" Set.empty False Nothing False
+cRuleRhsSyn attr nt con tp field childnt = CRule attr True False nt con field (Just childnt) (Just tp) (error ("cRuleRhsSyn: " ++ show (attr, nt, con, tp, field))) [] Map.empty False "" Set.empty False Nothing False (cRuleTag True nt con undefined)
 
 defaultRule :: Identifier -> NontermIdent -> ConstructorIdent -> Identifier -> CRule
-defaultRule attr nt con field =  CRule attr (er 1) (er 2) nt con field (er 3) (er 4) (er 5) (er 6) (er 7) (er 8) (er 9) (er 10) False Nothing False
+defaultRule attr nt con field =  CRule attr (er 1) (er 2) nt con field (er 3) (er 4) (er 5) (er 6) (er 7) (er 8) (er 9) (er 10) False Nothing False "_"
                                  where er i = error ("Default rule has no code " ++ show i)
 
 instance Eq CRule where
@@ -147,6 +149,21 @@ prettyCRule cr
                                ++ (if isLhs cr then "lhs." else "")
                                ++ (show (getAttr cr))
       in show (getLhsNt cr) ++ "." ++ show (getCon cr) ++ ", " ++ descr
+
+patAttrs :: Pattern -> [(Identifier,Identifier)]
+patAttrs (Constr _ pats) = concatMap patAttrs pats
+patAttrs (Product _ pats) = concatMap patAttrs pats
+patAttrs (Alias f a pat parts) = (f,a) : (patAttrs pat ++ concatMap patAttrs parts)
+patAttrs (Irrefutable pat) = patAttrs pat
+patAttrs (Underscore _) = []
+
+cRuleTag isIn nt con pat =
+  let patDescr | isIn      = "_"
+               | otherwise = concat $ intersperse "," (map (\(f,a) -> show f ++ "." ++ show a) (patAttrs pat))
+  in  show nt ++ ":" ++ show con ++ ":" ++ patDescr
+
+cChildVisitTag pNt pCon name nt nr =
+  show pNt ++ ":" ++ show pCon ++ ":" ++ show name ++ ":" ++ show nt ++ ":" ++ show nr
 
 instance NFData NTAttr where
   rnf (NTAInh nt i t) = nt `deepseq` i `deepseq` t `deepseq` ()

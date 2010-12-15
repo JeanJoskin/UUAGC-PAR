@@ -211,7 +211,7 @@ ATTR  Children Child Rules Rule
       [ | | gathRules USE {Seq.><} {Seq.empty} : {Seq CRule} ]
 SEM  Production
   |  Production  loc.inhRules = [ cRuleLhsInh inh @lhs.nt @con tp | (inh,tp) <- Map.assocs @lhs.inh ]
-                  loc.gathRules = @inhRules ++ toList (@children.gathRules Seq.>< @rules.gathRules)
+                 loc.gathRules = @inhRules ++ toList (@children.gathRules Seq.>< @rules.gathRules)
 
 SEM  Child
   |  Child  loc.gathRules = if  @maptolocal
@@ -236,7 +236,8 @@ SEM  Rule
                                           , let aa = AltAttr field attr isLocalOrInst
                                           ]
            loc.gathRules =  let childnt field = Map.lookup field @lhs.childNts
-                            in Seq.fromList [ CRule attr False True @lhs.nt @lhs.con field (childnt field) tp @pattern.copy @rhs.textLines @defines @owrt @origin @rhs.allRhsVars @explicit @mbName @heavy
+                                tag = cRuleTag False @lhs.nt @lhs.con @pattern.copy
+                            in Seq.fromList [ CRule attr False True @lhs.nt @lhs.con field (childnt field) tp @pattern.copy @rhs.textLines @defines @owrt @origin @rhs.allRhsVars @explicit @mbName @heavy tag
                                             | (field,attr,tp) <- Map.elems @defines 
                                             ]
 
@@ -578,7 +579,7 @@ ATTR Child Children [ | | singlevisits USE {++} {[]}: {[CRule]}]
 SEM Child 
   | Child lhs.singlevisits  =  if  @maptolocal
                                    then []
-                                   else [CChildVisit @name (getNtName @tp) 0 @inh @syn True]
+                                   else [CChildVisit @name (getNtName @tp) 0 @inh @syn True "+"]
 
 -- Now just build the CGrammar
 SEM  Grammar [ | | output : CGrammar ]

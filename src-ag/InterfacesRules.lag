@@ -29,7 +29,7 @@ import Data.Set(Set)
 import Data.Tree(Tree(Node))
 import Data.Graph(Graph, dfs, edges, vertices, buildG, transposeG, Forest (..), Bounds, topSort)
 import Data.Maybe (fromJust,mapMaybe)
-import Data.List (partition,transpose,(\\),nub,intersect, findIndex,sortBy,find,union)
+import Data.List (partition,transpose,(\\),nub,intersect, findIndex,sortBy,find,union,intersperse)
 import Data.Array ((!),inRange,bounds,assocs,indices)
 import Data.Foldable(toList)
 import qualified Data.IntMap as IntMap
@@ -301,21 +301,24 @@ ATTR IRoot [ | | nSparkSpots : Int ]
 
 SEM IRoot
   | IRoot loc.topPars = let tasks = concatMap (flatten . snd) @inters.taskTrees
-                            weightMap = mkWeightMap (ruleTable @lhs.info) vertexToVisit vwn tasks
+                            costFun = case @lhs.profileData of
+                                        (Just p) -> profileTaskWeight p (ruleTable @lhs.info)
+                                        _        -> annotTaskWeight (ruleTable @lhs.info)
+                            weightMap = mkWeightMap costFun vertexToVisit vwn tasks
                             taskTreeToVisit = Map.fromList @inters.taskTreeToVisit
                             vertexToVisit = Map.fromList @inters.vertexToVisit
                             taskTrees = Map.fromList @inters.taskTrees
-                            vw1 = visitWeights1 (ruleTable @lhs.info) taskTrees taskTreeToVisit
+                            vw1 = visitWeights1 costFun taskTrees taskTreeToVisit
                             vwn = (iterate (addVisitWeights visitGraph) vw1) !! 2
                             visitGraph = visitGr vertexToVisit taskTreeToVisit @inters.vn @inters.taskTrees
                         in  foldr (mergeParProfits . uncurry (parProfits weightMap)) [] @inters.taskTrees
           lhs.nSparkSpots = length @topPars
 
 {
-mkWeightMap :: Table CRule -> Map Vertex Int -> Map Int Int -> [Vertex] -> Map Vertex Int
-mkWeightMap ruleTable vertexToVisit visitW ts =
+mkWeightMap :: Map Vertex Int -> Map Vertex Int -> Map Int Int -> [Vertex] -> Map Vertex Int
+mkWeightMap taskW vertexToVisit visitW ts =
     let weight t  | Map.member t vertexToVisit = (t,visitW Map.! (vertexToVisit Map.! t))
-                  | otherwise                  = (t,defTaskWeight ruleTable t)
+                  | otherwise                  = (t,taskW Map.! t)
     in  Map.fromList (map weight ts)
 
 visitGr :: Map Vertex Int -> Map Int Int -> Int -> [(Int,TaskTree Vertex)] -> Graph
@@ -334,17 +337,17 @@ addVisitWeight g xcl w v m | elem v xcl = m
                            | otherwise  = let m' = Map.alter (\(Just x) -> Just $ x + w) v m
                                           in  foldr (addVisitWeight g (v:xcl) w) m' (g ! v)
 
-visitWeights1 :: Table CRule -> Map Int (TaskTree Vertex) -> Map Int Int -> Map Int Int
-visitWeights1 ruleTable tts taskTreeToVisit =
+visitWeights1 :: Map Vertex Int -> Map Int (TaskTree Vertex) -> Map Int Int -> Map Int Int
+visitWeights1 taskWeights tts taskTreeToVisit =
   let visitToTaskTrees = revMap taskTreeToVisit
       visits = Map.keys visitToTaskTrees
-      insWeight v = Map.insert v (visitWeight1 ruleTable tts visitToTaskTrees v)
+      insWeight v = Map.insert v (visitWeight1 taskWeights tts visitToTaskTrees v)
   in  foldr insWeight Map.empty visits 
 
-visitWeight1 :: Table CRule -> Map Int (TaskTree Vertex) -> Map Int [Int] -> Int -> Int
-visitWeight1 ruleTable tts visitToTaskTrees v =
+visitWeight1 :: Map Vertex Int -> Map Int (TaskTree Vertex) -> Map Int [Int] -> Int -> Int
+visitWeight1 taskWeights tts visitToTaskTrees v =
     let tts' = map ((Map.!) tts) (visitToTaskTrees Map.! v)
-    in  mean $ map (taskWeight1 ruleTable) tts'
+    in  mean $ map (taskTreeWeight1 taskWeights) tts'
 
 revMap :: (Ord b) => Map a b -> Map b [a]
 revMap m = foldr (\(a,b) -> Map.alter (ins a) b) Map.empty (Map.assocs m)
@@ -355,15 +358,29 @@ revMap m = foldr (\(a,b) -> Map.alter (ins a) b) Map.empty (Map.assocs m)
 mean :: [Int] -> Int
 mean xs = sum xs `div` length xs
 
-taskWeight1 :: Table CRule -> TaskTree Vertex -> Int
-taskWeight1 ruleTable tt =
+taskTreeWeight1 :: Map Vertex Int -> TaskTree Vertex -> Int
+taskTreeWeight1 taskWeights tt =
     let tasks = flatten tt
-    in  sum $ map (defTaskWeight ruleTable) tasks
+    in  sum $ map (\t -> Map.findWithDefault 0 t taskWeights) tasks
 
-defTaskWeight :: Table CRule -> Vertex -> Int
-defTaskWeight ruleTable task
-    | inRange (bounds ruleTable) task = if getHeavy (ruleTable ! task) then 10 else 0
-    | otherwise                       = 0
+annotTaskWeight :: Table CRule -> Map Vertex Int
+annotTaskWeight ruleTable  =
+    let w r | getHeavy r = 10 
+            | otherwise  = 0
+    in  Map.fromList $ map (\(v,r) -> (v,w r)) (assocs ruleTable)
+
+tagWeights :: Profile -> Map String Int
+tagWeights p = let g = profileGraph p
+               in  Map.fromList $ map (nodeToTagWeight) (IntMap.elems g)
+
+nodeToTagWeight :: Node -> (String,Int)
+nodeToTagWeight n = (nodeName n,foldl (\t c -> t + fromIntegral (ticks c)) 0 (parentNodes n))
+
+profileTaskWeight :: Profile -> Table CRule -> Map Vertex Int
+profileTaskWeight profile ruleTable =
+  let tw = tagWeights profile
+      w r = Map.findWithDefault 0 (getTag r) tw
+  in  Map.fromList $ map (\(v,r) -> (v,w r)) (assocs ruleTable)
 }
 
 ATTR Interfaces Interface [  | | conss USE {++} {[]} : {[(NontermIdent,[ConstructorIdent])]} ]
@@ -563,28 +580,28 @@ SEM  Segment [ | | cvisits : {[CVisit]} ] -- For this visit, for each constructo
               loc.(inhmap,synmap) = let makemap = Map.fromList . map findType
                                         findType v = getNtaNameType (attrTable @lhs.info ! v)
                                     in (makemap @inh,makemap @syn)
-              lhs.cvisits = let  mkVisit vss intra = CVisit @inhmap @synmap (mkRuleTree vss) (mkSequence intra) True
-                                 mkSequence = map mkRule
-                                 mkRuleTree = cRuleTree . (fmap mkRule)
-                                 mkRule v = case Map.lookup v @lhs.visitDescr of
-                                              Nothing -> ruleTable @lhs.info ! v
-                                              Just (ChildVisit name nt n _ _) -> ccv name nt n @lhs.allInters
-                            in zipWith mkVisit @visitss @intravisits
+              lhs.cvisits = let mkVisit vss intra c = CVisit @inhmap @synmap (mkRuleTree c vss) (mkSequence c intra) True
+                                mkSequence c = map (mkRule c)
+                                mkRuleTree c = cRuleTree . fmap (mkRule c)
+                                mkRule c v = case Map.lookup v @lhs.visitDescr of
+                                               Nothing -> ruleTable @lhs.info ! v
+                                               Just (ChildVisit name nt n _ _) -> ccv @lhs.nt c name nt n @lhs.allInters
+                            in  zipWith3 mkVisit @visitss @intravisits @lhs.cons
 
 {
-
 cRuleTree :: TaskTree CRule -> CRuleTree
 cRuleTree (TPar i xs) = CTPar (map cRuleTree xs)
 cRuleTree (TSeq i xs) = CTSeq (map cRuleTree xs)
 cRuleTree (TTask i t) = CTRule t
 
-ccv :: Identifier -> NontermIdent -> Int -> CInterfaceMap -> CRule
-ccv name nt n table
-  =  CChildVisit name nt n inh syn last
+ccv :: NontermIdent -> ConstructorIdent -> Identifier -> NontermIdent -> Int -> CInterfaceMap -> CRule
+ccv pNt pCon name nt n table
+  =  CChildVisit name nt n inh syn last tag
      where  CInterface segs = Map.findWithDefault (error ("InterfacesRules::ccv::interfaces not in table for nt: " ++ show nt)) nt table
             (seg:remain) = drop n segs
             CSegment inh syn = seg           
             last = null remain
+            tag = cChildVisitTag pNt pCon name nt n
 }
 \end{Code}
 

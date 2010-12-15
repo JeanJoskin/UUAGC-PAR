@@ -82,12 +82,14 @@ DATA  CRule
                    explicit   :  Bool   -- True if this an explicit rule found in the source file
                    mbNamed    : {Maybe Identifier}
                    heavy      : Bool
+                   tag        : String
    |  CChildVisit  name    :  Identifier  -- corresponding to the name of the child
                    nt      :  NontermIdent
                    nr      :  Int   -- visit number
                    inh     :  Attributes
                    syn     :  Attributes
                    isLast  :  Bool  -- indicates whether this is the last visit to this child
+                   tag     :  String
 
 SET AllCodeSyntax
   = CGrammar
