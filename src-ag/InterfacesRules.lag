@@ -144,6 +144,8 @@ SEM  Segment
                             in map (partition (isInh . @look)) (group (@inh ++ @syn))
               loc.v : {Int}
               loc.v = @lhs.v + length @groups
+              
+              loc.newvertices : {[Vertex]}
               loc.newvertices = [@lhs.v .. @loc.v-1]
 \end{Code}
 
@@ -218,6 +220,7 @@ SEM  Interface
   |  Interface  seg.v = @lhs.v
                 loc.v = @seg.v + length @seg.newvertices
                 lhs.v = @loc.v
+                loc.firstvisitvertices : {[Vertex]}
                 loc.firstvisitvertices = [@seg.v .. @v-1]
                 loc.newedges = zip @firstvisitvertices @seg.newvertices
                 lhs.newedges = @seg.newedges Seq.>< Seq.fromList @newedges
@@ -269,16 +272,21 @@ ATTR BEFORE Interfaces Interface Segments Segment [ | | taskTreesX USE {++} {[]}
 
 SEM  Segment
   |  Segment  loc.synOccur = gather @lhs.info (@occurAs isLhs @syn)
+
+              loc.tts' : {[TaskTree Vertex]}
               HEAVY loc.tts' = let genF | @lhs.o_datPar = taskTree
                                         | otherwise     = seqTaskTree
                                in  if null @syn
                                    then replicate (length @lhs.cons) emptyTaskTree
                                    else map (genF @lhs.vssGraph) @synOccur
               lhs.taskTreesX = @loc.tts' `deepseq` @loc.tts'
+              loc.tts : {[TaskTree Vertex]}
               loc.tts = let hasCode v | inRange (bounds (ruleTable @lhs.info)) v = getHasCode (ruleTable @lhs.info ! v)
                                       | otherwise = True
                             taskFilter v = hasCode v && notElem v @lhs.prev
                         in  map (filterTaskTree' taskFilter) @tts'
+
+              loc.vss : {[[Vertex]]}
               loc.vss = map flatten @tts
               loc.visitss = zipWith (\a b -> cleanTaskTree (decimate @lhs.topPars a b)) [@lhs.ttx..] @tts
               lhs.vertexToVisit = let isThisVisit (ChildVisit _ nt n _ _) = nt == @lhs.nt && n == @lhs.n
@@ -392,7 +400,7 @@ profileTaskWeight ccw ruleTable =
 
 option :: Bool -> a -> [a]
 option True x = [x]
-option False _ = trace "No" []
+option False _ = []
 }
 
 ATTR Interfaces Interface [  | | conss USE {++} {[]} : {[(NontermIdent,[ConstructorIdent])]} ]
