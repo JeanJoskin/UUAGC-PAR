@@ -4,16 +4,13 @@ MODULE {FibMin} {} {}
 -- It takes a binary tree, does some heavy calculation for its leaves (two fibonacci function)
 -- and returns the minimal value at the root.
 
--- Indicates that we want to use Control.Parallel for AG evaluation
-PRAGMA datpar
+INCLUDE "Tree.ag"
 
-DATA Root
-  | Root tree : Tree
+imports
+{
+import Tree
+}
 
-DATA Tree
-  | Node left : Tree
-         right : Tree
-  | Leaf value : Int
 
 ATTR Root Tree [ | | fibMin : Int ]
 

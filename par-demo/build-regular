@@ -1,0 +1,11 @@
+#!/bin/sh
+echo "Cleaning"
+rm -f *.hi *.o ChainFibMin.hs FibMin.hs Tree.hs bench
+echo "Building regular version"
+uuagc -d Tree.ag
+uuagc -swfc ChainFibMin.ag
+uuagc -swfc FibMin.ag
+ghc --make bench
+echo "Now run"
+echo " - FibMin: ./bench -1 +RTS -s"
+echo " - ChainFibMin: ./bench -2 +RTS -s"

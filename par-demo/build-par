@@ -1,0 +1,11 @@
+#!/bin/sh
+echo "Cleaning"
+rm -f *.hi *.o ChainFibMin.hs FibMin.hs Tree.hs bench
+echo "Building parallel version"
+uuagc -d Tree.ag
+uuagc -swfc --datpar --sepvisits ChainFibMin.ag
+uuagc -swfc --datpar FibMin.ag
+ghc -threaded --make bench
+echo "Now run"
+echo " - FibMin: ./bench -1 +RTS -s -N"
+echo " - ChainFibMin: ./bench -2 +RTS -s -N"

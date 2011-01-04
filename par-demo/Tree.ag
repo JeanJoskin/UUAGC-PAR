@@ -1,0 +1,9 @@
+MODULE {Tree} {} {}
+
+DATA Root
+  | Root tree : Tree
+
+DATA Tree
+  | Node left : Tree
+         right : Tree
+  | Leaf value : Int

@@ -1,20 +1,13 @@
-MODULE {FibMinChain} {} {}
+MODULE {ChainFibMin} {} {}
 
 -- An extended version of FibMin that has a chained attribute
 
--- Indicates that we want to use Control.Parallel for AG evaluation
-PRAGMA datpar
--- Enables attribute evaluation annotated with BEFORE to be evaluated as early
--- as possible.
-PRAGMA sepvisits
+INCLUDE "Tree.ag"
 
-DATA Root
-  | Root tree : Tree
-
-DATA Tree
-  | Node left : Tree
-         right : Tree
-  | Leaf value : Int
+imports
+{
+import Tree
+}
 
 ATTR Root Tree [ | | fibMin : Int ]
 ATTR BEFORE Tree [ | uni : Int | ]
