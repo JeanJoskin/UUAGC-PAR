@@ -1,0 +1,20 @@
+#!/bin/sh
+echo "Cleaning"
+rm -f *.hi *.o ChainFibMin.hs FibMin.hs Tree.hs bench bench.prof
+echo "Building regular version including cost centres"
+uuagc -d Tree.ag
+uuagc -swfc ChainFibMin.ag
+uuagc -swfc --gencostcentres FibMin.ag
+ghc -prof --make bench
+echo "Profiling FibMin..."
+./bench -1 +RTS -px
+echo "Cleaning"
+rm -f *.hi *.o ChainFibMin.hs FibMin.hs Tree.hs bench
+echo "Building parallel version using profile"
+uuagc -d Tree.ag
+uuagc -swfc ChainFibMin.ag
+uuagc -swfc --datpar -v --useprofile=bench.prof FibMin.ag
+ghc -threaded --make bench
+echo "Now run"
+echo " - FibMin: ./bench -1 +RTS -s -N"
+
