@@ -1,0 +1,33 @@
+MODULE {FibMin} {} {}
+
+-- A minimal simplistic demo for UUAGC+PAR.
+-- It takes a binary tree, does some heavy calculation for its leaves (two fibonacci function)
+-- and returns the minimal value at the root.
+
+-- Indicates that we want to use Control.Parallel for AG evaluation
+PRAGMA datpar
+
+DATA Root
+  | Root tree : Tree
+
+DATA Tree
+  | Node left : Tree
+         right : Tree
+  | Leaf value : Int
+
+ATTR Root Tree [ | | fibMin : Int ]
+
+SEM Root
+  | Root lhs.fibMin = @tree.fibMin
+
+SEM Tree
+  | Node lhs.fibMin = min @left.fibMin @right.fibMin
+  | Leaf HEAVY loc.fibA = fib ((abs @value) `mod` 20)
+         HEAVY loc.fibB = fib ((abs @value) `mod` 18)
+         lhs.fibMin = @loc.fibA + @loc.fibB
+
+{
+fib 0 = 0
+fib 1 = 1
+fib n = fib (n-1) + fib (n-2)
+}

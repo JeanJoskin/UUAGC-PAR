@@ -1,0 +1,36 @@
+MODULE {FibMinChain} {} {}
+
+-- An extended version of FibMin that has a chained attribute
+
+-- Indicates that we want to use Control.Parallel for AG evaluation
+PRAGMA datpar
+-- Enables attribute evaluation annotated with BEFORE to be evaluated as early
+-- as possible.
+PRAGMA sepvisits
+
+DATA Root
+  | Root tree : Tree
+
+DATA Tree
+  | Node left : Tree
+         right : Tree
+  | Leaf value : Int
+
+ATTR Root Tree [ | | fibMin : Int ]
+ATTR BEFORE Tree [ | uni : Int | ]
+
+SEM Root
+  | Root tree.uni = 0
+         lhs.fibMin = @tree.fibMin
+
+SEM Tree
+  | Node lhs.fibMin = min @left.fibMin @right.fibMin
+  | Leaf lhs.uni = @lhs.uni + 1
+         HEAVY loc.fib = fib ((abs @value) `mod` 20)
+         lhs.fibMin = @loc.fib + @lhs.uni
+
+{
+fib 0 = 0
+fib 1 = 1
+fib n = fib (n-1) + fib (n-2)
+}
