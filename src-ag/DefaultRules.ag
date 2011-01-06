@@ -30,7 +30,7 @@ import qualified Code (Type(..))
 import AbstractSyntax
 import ErrorMessages
 
-import Options(Options,modcopy,rename,depthAttr,datPar)
+import Options(Options,modcopy,rename,datPar)
 }
 
 -------------------------------------------------------------------------------
@@ -46,14 +46,12 @@ ATTR Rule Rules Child Children Pattern Patterns [ con:ConstructorIdent | | ]
 
 ATTR Grammar          [ options:{Options} | | ]
 ATTR Nonterminals Nonterminal Productions Production Children Child [ o_rename:{Bool}
-                                                                      o_depthAttr:{Bool}
                                                                       o_datPar:{Bool}
                                                                       cr:Bool {- copy rule -}  
                                                                       | | ]
 
 SEM Grammar
   | Grammar     nonts.o_rename    = rename    @lhs.options
-                nonts.o_depthAttr = depthAttr @lhs.options
                 nonts.o_datPar    = datPar    @lhs.options
                 nonts.cr          = modcopy   @lhs.options
 
@@ -260,15 +258,6 @@ selfRule lhsNecLoc attr x
                (Expression noPos tks)
                "self rule"
 
-depthRule :: NontermIdent -> [(Identifier,Type)] -> [Rule]
-depthRule nt cs = 
-        let tks = [ HsToken "1+" noPos, AGField _LHS _DEPTH noPos Nothing ]
-            descr = "depth rule"
-            propagate c t | nt == t   = makeRule (c,_DEPTH) (Expression noPos [AGLocal _DEPTH noPos Nothing]) descr
-                          | otherwise = makeRule (c,_DEPTH) (Expression noPos [HsToken "0" noPos]) descr
-        in makeRule (_LOC,_DEPTH) (Expression noPos tks) descr:
-            [ propagate c t | (c,(NT t _)) <- cs ]
-
 concatRE rsess = let (rss,ess) = unzip rsess
                  in (concat rss, concatSeq ess)
 
@@ -404,16 +393,13 @@ SEM Production
             , not (Set.member (_LHS,attr) @rules.definedAttrs) 
             ]
 
-        depthRules = if @lhs.o_depthAttr then depthRule @lhs.nt [ (nm,tp) | (nm,tp,ho) <- @children.fields, isNonterminal tp ]
-                                      else []
-                               
         (rules5, errs5) 
           = copyRule @lhs.nt 
                      @con 
                      @lhs.cr 
                      locals
                      (lhs_env, (_LHS, others))                 
-    in (uRules++selfLocRules++selfRules++depthRules++rules5++rules1, errors1><errs5)   
+    in (uRules++selfLocRules++selfRules++rules5++rules1, errors1><errs5)   
     
 {
 addAugments :: (Identifier, [Expression]) -> [Rule] -> [Rule]
@@ -508,15 +494,10 @@ ATTR Grammar Nonterminals  Nonterminal   Productions
 ATTR Rule [ | | outputs:Rules ]
 
 SEM Nonterminal
-  | Nonterminal lhs.output = let (inh,dfl) | @lhs.o_depthAttr = (Map.insert _DEPTH (Haskell "Int") @inh,
-                                                              Map.insert _DEPTH (SimpleExpr "0") @inhDflt)
-                                           | otherwise     = (@inh, @inhDflt)
-                             in Nonterminal @nt @params inh @syn dfl @prods.output
+  | Nonterminal lhs.output = Nonterminal @nt @params @inh @syn @prods.output
 
 SEM Child
-  | Child lhs.output = let e | @lhs.o_depthAttr = Map.insert _DEPTH (Haskell "Int")
-                             | otherwise        = id
-                       in Child @name @tp (e @inh) @syn @virtual
+  | Child lhs.output = Child @name @tp @inh @syn @virtual
 
 
 SEM Production

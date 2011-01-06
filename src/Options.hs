@@ -61,7 +61,6 @@ options     =  [ Option ['m']     []                (NoArg (moduleOpt Nothing)) 
                , Option []        ["visitcode"]        (NoArg visitorsOutputOpt) "Experimental: generate visitors code"
                , Option []        ["statistics"]      (ReqArg statisticsOpt "FILE to append to") "Append statistics to FILE"
                , Option []        ["datpar"]  (NoArg datParOpt) "data parallel traversals (visit functions only)"
-               , Option []        ["depth"]  (NoArg depthAttrOpt) "add depth attribute (testing purposes)"
                , Option []        ["dumpschedgraphs"] (NoArg dumpSchedGraphsOpt) "Dump scheduling graphs"
                , Option []        ["useprofile"]    (ReqArg useProfileOpt "profile file") "Use time profile for scheduling (use -px format)"
                , Option []        ["sepvisits"]    (NoArg sepVisitsOpt) "Handles attributes annotated with SEP in separate visits"
@@ -125,7 +124,6 @@ data Options = Options{ moduleName :: ModuleHeader
                       , visitorsOutput :: Bool
                       , statsFile :: Maybe String
                       , datPar :: Bool
-                      , depthAttr :: Bool
                       , dumpSchedGraphs :: Bool
                       , useProfile :: Maybe String
                       , sepVisits :: Bool
@@ -186,7 +184,6 @@ noOptions = Options { moduleName    = NoName
                     , visitorsOutput  = False
                     , statsFile       = Nothing
                     , datPar          = False
-                    , depthAttr       = False
                     , dumpSchedGraphs = False
                     , useProfile      = Nothing
                     , sepVisits       = False
@@ -248,7 +245,6 @@ ocamlOpt opts = opts { ocaml = True }
 visitorsOutputOpt opts = opts { visitorsOutput = True }
 statisticsOpt nm opts = opts { statsFile = Just nm }
 datParOpt      opts = opts{datPar  = True, cases = True, visit = True}
-depthAttrOpt   opts = opts{depthAttr   = True}
 dumpSchedGraphsOpt opts = opts { dumpSchedGraphs = True }
 useProfileOpt nm opts = opts { useProfile = Just nm }
 sepVisitsOpt opts = opts { sepVisits = True }

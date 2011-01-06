@@ -37,7 +37,6 @@ DATA Nonterminal  | Nonterminal nt     : {NontermIdent}
                                 params : {[Identifier]}
                                 inh    : {Attributes}
                                 syn    : {Attributes}
-                                inhDflt :  {Map Identifier Expr}
                                 prods  : Productions
 
 DATA Production  | Production   con      : {ConstructorIdent}
