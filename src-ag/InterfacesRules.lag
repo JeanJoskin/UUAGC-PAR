@@ -267,15 +267,19 @@ ATTR Interfaces Interface Segments Segment [ | | taskTreeToVisit USE {++} {[]} :
 
 ATTR IRoot Interfaces Interface Segments Segment [ | | taskTreeDumps USE {++} {[]} : {[(String,String)]} ]
 
+ATTR BEFORE Interfaces Interface Segments Segment [ | | taskTreesX USE {++} {[]} : {[TaskTree Vertex]} ]
+
+
 SEM  Segment
   |  Segment  loc.synOccur = gather @lhs.info (@occurAs isLhs @syn)
 
               loc.tts' : {[TaskTree Vertex]}
-              loc.tts' = let genF | @lhs.o_datPar = taskTree
-                                  | otherwise     = seqTaskTree
-                         in  if null @syn
-                             then replicate (length @lhs.cons) emptyTaskTree
-                             else map (genF @lhs.vssGraph) @synOccur
+              HEAVY loc.tts' = let genF | @lhs.o_datPar = taskTree
+                                        | otherwise     = seqTaskTree
+                               in  if null @syn
+                                   then replicate (length @lhs.cons) emptyTaskTree
+                                   else map (genF @lhs.vssGraph) @synOccur
+              lhs.taskTreesX = @loc.tts' `deepseq` @loc.tts'
               loc.tts : {[TaskTree Vertex]}
               loc.tts = let hasCode v | inRange (bounds (ruleTable @lhs.info)) v = getHasCode (ruleTable @lhs.info ! v)
                                       | otherwise = True
@@ -641,4 +645,3 @@ SEM  Segments [ | | firstAttr : {[Vertex]} ]
            lhs.firstAttr = @hd.attr
   |  Nil  lhs.firstAttr = []
 \end{Code}
-
