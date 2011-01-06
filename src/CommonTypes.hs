@@ -6,7 +6,6 @@ import qualified Data.Map as Map
 import Data.Map(Map)
 import Data.Set(Set)
 import qualified Data.Set as Set
-import Control.DeepSeq
 
 type Blocks = Map BlockInfo [([String], Pos)]
 type BlockInfo = (BlockType, Maybe NontermIdent)
@@ -170,10 +169,3 @@ deforestedNt :: Identifier -> Maybe Identifier
 deforestedNt nm
   | take 2 (getName nm) == "T_" = Just (Ident (drop 2 (getName nm)) (getPos nm))
   | otherwise = Nothing
-
-instance NFData Identifier where
-  rnf (Ident n p) = n `seq` p `seq` ()
-
-instance NFData Type where
-  rnf (Haskell s) = s `seq` ()
-  rnf (NT i f) = i `seq` f `deepseq` ()

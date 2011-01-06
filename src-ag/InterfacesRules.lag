@@ -33,7 +33,6 @@ import Data.List (partition,transpose,(\\),nub,intersect, findIndex,sortBy,find,
 import Data.Array ((!),inRange,bounds,assocs,indices)
 import Data.Foldable(toList)
 import qualified Data.IntMap as IntMap
-import Control.DeepSeq
 
 import Control.Monad (forM_,when)
 import Control.Monad.ST
@@ -100,7 +99,7 @@ SEM  IRoot
   |  IRoot loc.newedges = toList @inters.newedges
            loc.visitssGraph =  let graph = buildG (0,@inters.v-1) (map swap es)
                                    es = @newedges ++ edges @lhs.tdp
-                               in  graph `deepseq` graph
+                               in  graph
 \end{Code}
 
 As we will need to look up information, we pass |info| down. An
@@ -112,7 +111,7 @@ ATTR Interfaces Interface Segments Segment [ | v : Vertex | ]
 ATTR IRoot Interfaces Interface Segments Segment [ info : Info | | ]
 SEM  IRoot 
   |  IRoot inters.v = snd (bounds @lhs.tdp) + 1
-           inters.info = @lhs.info `deepseq` @lhs.info
+           inters.info = @lhs.info
 \end{Code}
 
 The actual generation of edges takes place in |Segment|. We group the

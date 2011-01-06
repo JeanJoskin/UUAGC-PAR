@@ -3,7 +3,6 @@ imports
 -- Patterns.ag imports
 import UU.Scanner.Position(Pos)
 import CommonTypes (ConstructorIdent,Identifier)
-import Control.DeepSeq
 }
 
 TYPE Patterns   = [Pattern]

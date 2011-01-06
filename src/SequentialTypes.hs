@@ -10,7 +10,6 @@ import qualified Data.Set as Set
 import Data.Maybe(fromJust)
 import Data.List(partition,intersperse)
 import UU.Pretty
-import Control.DeepSeq
 import Patterns (Pattern (..))
 
 type Vertex    = Int
@@ -164,7 +163,3 @@ cRuleTag isIn nt con pat =
 
 cChildVisitTag pNt pCon name nt nr =
   show pNt ++ ":" ++ show pCon ++ ":" ++ show name ++ ":" ++ show nt ++ ":" ++ show nr
-
-instance NFData NTAttr where
-  rnf (NTAInh nt i t) = nt `deepseq` i `deepseq` t `deepseq` ()
-  rnf (NTASyn nt i t) = nt `deepseq` i `deepseq` t `deepseq` ()
