@@ -63,7 +63,7 @@ options     =  [ Option ['m']     []                (NoArg (moduleOpt Nothing)) 
                , Option []        ["datpar"]  (NoArg datParOpt) "data parallel traversals (visit functions only)"
                , Option []        ["dumpschedgraphs"] (NoArg dumpSchedGraphsOpt) "Dump scheduling graphs"
                , Option []        ["useprofile"]    (ReqArg useProfileOpt "profile file") "Use time profile for scheduling (use -px format)"
-               , Option []        ["sepvisits"]    (NoArg sepVisitsOpt) "Handles attributes annotated with SEP in separate visits"
+               , Option []        ["sepvisits"]    (NoArg sepVisitsOpt) "Handles attributes annotated with BEFORE in separate visits"
                , Option []        ["dumpds"]    (NoArg dumpDsOpt) "Dumps dependencies of symbols"
                , Option []        ["topsem"]    (NoArg topSemOpt) "Splits visits into separate top-level functions"
                ]
