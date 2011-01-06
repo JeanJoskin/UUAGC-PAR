@@ -29,7 +29,6 @@ executable uuagc
     build-depends: base < 3
 
   build-depends: haskell98, uulib>=0.9.12
-  ghc-options: -threaded
   main-is: Ag.hs
   other-modules: Ag
     , CommonTypes
