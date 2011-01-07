@@ -1,1 +1,14 @@
 .DS_Store
+*.hi
+*.o
+ag.depend
+src-derived/*
+Makefile
+Setup
+autom4te.cache/*
+config.log
+config.status
+configure
+src/Version.hs
+uuagc.cabal*
+dist/*
