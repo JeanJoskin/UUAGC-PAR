@@ -368,9 +368,9 @@ isLocLoc :: Table CRule -> EdgePath -> Bool
 isLocLoc rt ((s,t),_) = isLocal (rt ! s) && isLocal (rt ! t)
                         -- || (isInst (rt ! s) && isInst (rt ! t))
 
-graphDump :: Info -> Options -> MGraph -> [(String,String)]
-graphDump info opt g | dumpDs opt = [("tds.dot",vizTds info g)]
-                     | otherwise  = []
+graphDump :: Info -> Options -> String -> MGraph -> [(String,String)]
+graphDump info opt nm g | dumpDs opt = [(nm ++ ".dot",vizTds info g)]
+                       | otherwise  = []
 
 computeSequential :: Info -> Options -> Maybe Profile -> [Vertex] -> [Edge] -> [Edge] -> CycleStatus
 computeSequential info opt prof beforeAttrs dpr instToSynEdges
@@ -390,27 +390,27 @@ computeSequential info opt prof beforeAttrs dpr instToSynEdges
             then do return (LocalCycle (reportLocalCycle undefined cyc1) [])               -- then report an error.
             else do  mapM_ (insertTdp info comp) es                                        -- insert the other dependencies
                      tds2 <- freeze tds
-                     let graphDumps = graphDump info opt tds2
+                     let dumps2 = graphDump info opt "ds2" tds2
                      let cyc2 = findCycles info tds2
                      if  not (null cyc2)                                                   -- are they cyclic?
-                         then do  return (DirectCycle (reportCycle info tds2 cyc2) graphDumps)     -- then report an error.
+                         then do  return (DirectCycle (reportCycle info tds2 cyc2) dumps2)     -- then report an error.
                          else do  tdp2 <- freeze tdpN
                                   let cyc4 = findInstCycles instToSynEdges tdp2
                                   if  not (null cyc4)
-                                      then do return (InstCycle (reportLocalCycle tds2 cyc4) graphDumps)              -- then report an error.
+                                      then do return (InstCycle (reportLocalCycle tds2 cyc4) dumps2)              -- then report an error.
                                       else do let  before = if sepVisits opt then beforeAttrs else []
                                                    (cim,cvm,edp,dmp,vi) = generateVisits info prof opt before tds2 tdp2 dpr
                                               mapM_ (insertTds info comp) (map (singleStep AttrIndu) edp) -- insert dependencies induced by visit scheduling
                                               tds3 <- freeze tds
-                                              let graphDumps = dmp ++ graphDump info opt tds3
+                                              let dumps3 = dumps2 ++ dmp ++ graphDump info opt "ds3" tds3
                                               let cyc3 = findCycles info tds3
                                               if  not (null cyc3)                                      -- are they cyclic?
-                                                  then return (InducedCycle cim (reportCycle info tds3 cyc3) graphDumps) -- then report an error.
+                                                  then return (InducedCycle cim (reportCycle info tds3 cyc3) dumps3) -- then report an error.
                                                   else do tdp3 <- freeze tdpN
                                                           let cyc5 = findInstCycles instToSynEdges tdp3
                                                           if  not (null cyc5)
-                                                              then do return (InstCycle (reportLocalCycle tds3 cyc5) graphDumps)     -- then report an error.
-                                                              else do return (CycleFree cim cvm graphDumps vi)                      -- otherwise we succeed.
+                                                              then do return (InstCycle (reportLocalCycle tds3 cyc5) dumps3)     -- then report an error.
+                                                              else do return (CycleFree cim cvm dumps3 vi)                       -- otherwise we succeed.
     )
 \end{code}
 
