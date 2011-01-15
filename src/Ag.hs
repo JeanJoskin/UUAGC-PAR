@@ -137,7 +137,6 @@ compile flags input output
                 = vlist (map pp strs)
           
           optionsGHC = option (unbox flags') "-fglasgow-exts" ++ option (bangpats flags') "-XBangPatterns"
-                         ++ option (datPar flags') "-XRank2Types"
           option True s  = [s]
           option False _ = []
           optionsLine | null optionsGHC = ""
