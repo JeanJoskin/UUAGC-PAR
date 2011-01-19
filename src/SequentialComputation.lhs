@@ -249,7 +249,7 @@ makeInterface before tds del (l,m,h)
   | m > h = [([],[])]
   | otherwise = let  synSink = filter (isSink tds del) ([m..h] \\ del)
                      synNoSep = synSink \\ before
-                     syn | null synNoSep = intersect before synSink
+                     syn | null synNoSep = take 1 (intersect before synSink)
                          | otherwise     = synNoSep
                      del' = del ++ syn
                      inh = filter (isSink tds del') ([l..(m-1)] \\ del')
