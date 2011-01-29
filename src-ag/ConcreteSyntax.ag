@@ -33,6 +33,7 @@ DATA Elem      | Data   pos    : {Pos}
 
                | Attr   pos    : {Pos}
                         before : {Bool}
+                        after  : {Bool}
                         ctx    : {ClassContext}
                         names  : NontSet
                         attrs  : Attrs

@@ -114,6 +114,7 @@ parseFile opts searchPath file
                 <*> pSucceed False
         <|> Attr <$> pATTR
                  <*> pOptBefore
+                 <*> pOptAfter
                  <*> pOptClassContext
                  <*> pNontSet
                  <*> pAttrs
@@ -442,6 +443,10 @@ pOptBefore :: AGParser Bool
 pOptBefore = (const True <$> pBEFORE <?> "BEFORE")
              <|> pSucceed False
 
+pOptAfter :: AGParser Bool
+pOptAfter = (const True <$> pAFTER <?> "AFTER")
+             <|> pSucceed False
+
 pSEM, pATTR, pDATA, pUSE, pLOC,pINCLUDE, pTYPE, pEquals, pColonEquals, pTilde,
       pBar, pColon, pLHS,pINST,pSET,pDERIVING,pMinus,pIntersect,pDoubleArrow,pArrow,
       pDot, pUScore, pEXT,pAt,pStar, pSmaller, pWRAPPER, pPRAGMA, pMAYBE, pEITHER, pMAP, pINTMAP,
@@ -464,6 +469,7 @@ pSYN         = pCostReserved 90 "SYN"     <?> "SYN"
 pCHN         = pCostReserved 90 "CHN"     <?> "CHN"
 pHEAVY       = pCostReserved 90 "HEAVY"   <?> "HEAVY"
 pBEFORE      = pCostReserved 90 "BEFORE"  <?> "BEFORE"
+pAFTER       = pCostReserved 90 "AFTER"   <?> "AFTER"
 pMAYBE       = pCostReserved 5  "MAYBE"   <?> "MAYBE"
 pEITHER      = pCostReserved 5  "EITHER"  <?> "EITHER"
 pMAP         = pCostReserved 5  "MAP"     <?> "MAP"

@@ -219,9 +219,9 @@ See modules Interfaces and InterfacesRules for more information.
 %format sem_Segments_Nil = "[]_{Segments}"
 
 \begin{code}
-makeInterfaces :: Info -> [Vertex] -> Graph -> T_IRoot
-makeInterfaces info before tds
-  =  let interslist = reverse . makeInterface before tds []
+makeInterfaces :: Info -> ([Vertex],[Vertex]) -> Graph -> T_IRoot
+makeInterfaces info bfaf tds
+  =  let interslist = reverse . makeInterface bfaf [] tds []
          mkSegments = foldr (sem_Segments_Cons . uncurry sem_Segment_Segment) sem_Segments_Nil . interslist
          mkInter ((nt,cons),lmh) = sem_Interface_Interface nt cons (mkSegments lmh)
          inters = foldr (sem_Interfaces_Cons . mkInter) sem_Interfaces_Nil (zip (nonts info) (lmh info))
@@ -244,17 +244,19 @@ sinks alternatively. If there are no synthesized attributes at all,
 generate an interface with one visit computing nothing.
 
 \begin{code}
-makeInterface :: [Vertex] -> Graph -> [Vertex] -> LMH -> [([Vertex],[Vertex])]
-makeInterface before tds del (l,m,h)
+makeInterface :: ([Vertex],[Vertex]) -> [Vertex] -> Graph -> [Vertex] -> LMH -> [([Vertex],[Vertex])]
+makeInterface (before,after) p tds del (l,m,h)
   | m > h = [([],[])]
   | otherwise = let  synSink = filter (isSink tds del) ([m..h] \\ del)
-                     synNoSep = synSink \\ before
-                     syn | null synNoSep = take 1 (intersect before synSink)
-                         | otherwise     = synNoSep
+                     synAfter = intersect synSink after
+                     syn | not (null p)         = p
+                         | not (null synAfter)  = synAfter
+                         | otherwise            = synSink \\ before
+                     p' = intersect synSink before \\ p
                      del' = del ++ syn
                      inh = filter (isSink tds del') ([l..(m-1)] \\ del')
                      del'' = del' ++ inh
-                     rest = makeInterface before tds del'' (l,m,h)
+                     rest = makeInterface (before,after) p' tds del'' (l,m,h)
                 in if  null inh && null syn
                        then []
                        else (inh,syn) : rest
@@ -302,9 +304,9 @@ findInstCycles instToSynEdges tdp
 \section{Tying it together}
 
 \begin{code}
-generateVisits :: Info -> Maybe Profile -> Options -> [Vertex] -> MGraph -> MGraph -> [Edge] -> (CInterfaceMap, CVisitsMap, [Edge], [(String,String)], [String])
-generateVisits info prof opt beforeAttrs tds tdp dpr
-  = let  inters = makeInterfaces info beforeAttrs (fmap Map.keys tds)
+generateVisits :: Info -> Maybe Profile -> Options -> ([Vertex],[Vertex]) -> MGraph -> MGraph -> [Edge] -> (CInterfaceMap, CVisitsMap, [Edge], [(String,String)], [String])
+generateVisits info prof opt bfaf tds tdp dpr
+  = let  inters = makeInterfaces info bfaf (fmap Map.keys tds)
          inhs = Inh_IRoot{ info_Inh_IRoot = info
                          , options_Inh_IRoot = opt
                          , profileData_Inh_IRoot = prof
@@ -372,8 +374,8 @@ graphDump :: Info -> Options -> String -> MGraph -> [(String,String)]
 graphDump info opt nm g | dumpDs opt = [(nm ++ ".dot",vizTds info g)]
                        | otherwise  = []
 
-computeSequential :: Info -> Options -> Maybe Profile -> [Vertex] -> [Edge] -> [Edge] -> CycleStatus
-computeSequential info opt prof beforeAttrs dpr instToSynEdges
+computeSequential :: Info -> Options -> Maybe Profile -> ([Vertex],[Vertex]) -> [Edge] -> [Edge] -> CycleStatus
+computeSequential info opt prof bfAf dpr instToSynEdges
   = runST
     (do let bigBounds   = bounds (tdpToTds info)
             smallBounds = bounds (tdsToTdp info)
@@ -398,8 +400,8 @@ computeSequential info opt prof beforeAttrs dpr instToSynEdges
                                   let cyc4 = findInstCycles instToSynEdges tdp2
                                   if  not (null cyc4)
                                       then do return (InstCycle (reportLocalCycle tds2 cyc4) dumps2)              -- then report an error.
-                                      else do let  before = if sepVisits opt then beforeAttrs else []
-                                                   (cim,cvm,edp,dmp,vi) = generateVisits info prof opt before tds2 tdp2 dpr
+                                      else do let  bfAf' = if sepVisits opt then bfAf else ([],[])
+                                                   (cim,cvm,edp,dmp,vi) = generateVisits info prof opt bfAf' tds2 tdp2 dpr
                                               mapM_ (insertTds info comp) (map (singleStep AttrIndu) edp) -- insert dependencies induced by visit scheduling
                                               tds3 <- freeze tds
                                               let dumps3 = dumps2 ++ dmp ++ graphDump info opt "ds3" tds3

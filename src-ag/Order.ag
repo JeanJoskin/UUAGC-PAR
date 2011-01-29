@@ -515,11 +515,13 @@ SEM Grammar
                                      , nonts      = @nonts.nonts
                                      , wraps      = @wrappers
                                      }
-            loc.beforeVertices = let ntaIsSep = flip elem @beforeAttrs . getNtaNameIdent . snd
-                                 in  map fst $ filter ntaIsSep (toList @nonts.ntattrs)
+            loc.bfAfVertices = let (bf,af) = @bfAf
+                                   ntaIs as = flip elem as . getNtaNameIdent . snd
+                                   findAttrs as = map fst $ filter (ntaIs as) (toList @nonts.ntattrs)
+                               in  (findAttrs bf,findAttrs af)
 
             loc.(cInterfaceMap,cVisitsMap,cyclesErrors,graphDumps,verboseInfo) =
-                              case computeSequential @info @lhs.options @lhs.profileData @beforeVertices @directDep (@instDep ++ @aroundDep) of
+                              case computeSequential @info @lhs.options @lhs.profileData @loc.bfAfVertices @directDep (@instDep ++ @aroundDep) of
                                            CycleFree    cim cvm dmp vi -> ( cim
                                                                           , cvm
                                                                           , []
@@ -583,7 +585,7 @@ SEM Child
 
 -- Now just build the CGrammar
 SEM  Grammar [ | | output : CGrammar ]
-  |  Grammar  lhs.output = CGrammar @typeSyns @derivings @wrappers @nonts.cNonterminals @pragmas @paramMap @contextMap @loc.aroundMap @beforeAttrs
+  |  Grammar  lhs.output = CGrammar @typeSyns @derivings @wrappers @nonts.cNonterminals @pragmas @paramMap @contextMap @loc.aroundMap @bfAf
 SEM  Nonterminals [ | | cNonterminals : CNonterminals ]
   |  Cons  lhs.cNonterminals = @hd.cNonterminal : @tl.cNonterminals
   |  Nil   lhs.cNonterminals = []

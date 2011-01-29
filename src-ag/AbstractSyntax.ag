@@ -21,7 +21,7 @@ DATA Grammar      | Grammar typeSyns  : {TypeSyns}
                             uniqueMap  : {UniqueMap}
                             augmentsMap : {Map NontermIdent (Map ConstructorIdent (Map Identifier [Expression]))}
                             aroundsMap : {Map NontermIdent (Map ConstructorIdent (Map Identifier [Expression]))}
-                            beforeAttrs : {[(NontermIdent,Identifier)]}
+                            bfAf : {([(NontermIdent,Identifier)],[(NontermIdent,Identifier)])}
 
 TYPE Nonterminals = [Nonterminal]
 
