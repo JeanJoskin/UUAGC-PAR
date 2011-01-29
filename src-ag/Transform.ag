@@ -882,14 +882,11 @@ ATTR Elem Elems [ | | bf USE {++} {[]} : {[(NontermIdent,Identifier)]} ]
 ATTR Elem Elems [ | | af USE {++} {[]} : {[(NontermIdent,Identifier)]} ]
 
 SEM Elem
-  | Attr loc.attrsInDecl = map (\(a,_,_) -> a) @attrs.attrsInDecl
-         loc.nts = Set.toList @names.collectedNames
-         lhs.bf = if @before
-                  then [ (nt,a) | nt <- @nts, a <- @attrsInDecl ]
-                  else []
-         lhs.af = if @after
-                  then [ (nt,a) | nt <- @nts, a <- @attrsInDecl ]
-                  else []
+  | Attr loc.ntAttr = let attrsInDecl = map (\(a,_,_) -> a) @attrs.attrsInDecl
+                          nts = Set.toList @names.collectedNames
+                      in  [ (nt,a) | nt <- nts, a <- attrsInDecl ]
+         lhs.bf = if @before then @ntAttr else []
+         lhs.af = if @after then @ntAttr else []
 
 -- Add declaration of self-attribute for each nonterminal: ATTR <nt> [ | | self:SELF]
 {
